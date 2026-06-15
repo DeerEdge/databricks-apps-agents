@@ -70,39 +70,44 @@ export default function AgentAsk({ onResult }: { onResult: (capability: string, 
   return (
     <section className="panel agent">
       <div className="panel__head">
-        <div className="panel__eyebrow">Mosaic-style agent</div>
-        <h2 className="panel__title">Ask the planner agent</h2>
+        <div className="panel__eyebrow">AI planner agent</div>
+        <h2 className="panel__title">Ask in plain English</h2>
       </div>
       <div className="panel__body">
-        <form className="agent__form" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
-          <input className="agent__input" value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder="e.g. where are the worst ICU gaps?" maxLength={500} />
-          <button className="btn btn--primary" disabled={loading}>{loading ? "…" : "Ask"}</button>
+        <form className="ask__form" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
+          <input className="ask__input" value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Where are the worst ICU gaps?" maxLength={500} aria-label="Ask the planner agent" />
+          <button className="ask__send" disabled={loading || !q.trim()} aria-label="Ask">
+            {loading ? <span className="ask__spin" /> : "→"}
+          </button>
         </form>
-        <div className="agent__chips">
+        <div className="ask__chips">
           {SUGGESTIONS.map((s) => (
-            <button key={s} className="chip" disabled={loading} onClick={() => { setQ(s); ask(s); }}>{s}</button>
+            <button key={s} className="ask__chip" disabled={loading} onClick={() => { setQ(s); ask(s); }}>{s}</button>
           ))}
         </div>
 
         {steps.length > 0 && (
-          <ol className="agent__steps">
-            {steps.slice(0, shown).map((s, i) => (
-              <li key={i} className="agent__step"><Rich text={s} /></li>
-            ))}
-            {shown < steps.length && <li className="agent__step agent__step--pending">▍ running…</li>}
-          </ol>
+          <div className="ask__steps">
+            <div className="ask__steps-head">Reasoning</div>
+            <ol className="ask__steps-list">
+              {steps.slice(0, shown).map((s, i) => (
+                <li key={i} className="ask__step"><Rich text={s} /></li>
+              ))}
+              {shown < steps.length && <li className="ask__step ask__step--pending">running…</li>}
+            </ol>
+          </div>
         )}
 
         {answer && (
-          <div className="agent__answer">
-            <p className="agent__text"><Rich text={answer} /></p>
+          <div className="ask__answer">
+            <p className="ask__text"><Rich text={answer} /></p>
             {citations.length > 0 && (
-              <ul className="agent__cites">
+              <ul className="ask__cites">
                 {citations.map((c, i) => (
-                  <li key={i} className="agent__cite">
-                    <div className="agent__cite-top">
-                      <span className="agent__cite-name">{c.name || "Facility"}</span>
+                  <li key={i} className="ask__cite">
+                    <div className="ask__cite-top">
+                      <span className="ask__cite-name">{c.name || "Facility"}</span>
                       <span className={`trust ${trustClass(c.trust)}`}>{c.trust}</span>
                     </div>
                     <blockquote className="fac__cite">“{c.citation}”</blockquote>
