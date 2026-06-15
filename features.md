@@ -93,6 +93,11 @@ drills into facility records and **persists planning scenarios**.
       Bihar → 60 points, zoom 4.2→7.7, green+amber by trust, hover citation. Reliable geographic
       depth without district-polygon name-matching risk.
 
+- [x] **MD12 — shareable scenario brief.** Each saved scenario expands to a cited Markdown brief
+      (title, gap score / data-poor status, facility count, planner note, and the captured evidence
+      with trust) + one-click copy. `brief.ts` pure (6 tests). Verified live: brief renders with
+      cited evidence and "copied ✓". Makes the persisted plan a deliverable a funder can share.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts
