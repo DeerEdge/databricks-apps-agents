@@ -116,6 +116,14 @@ export default function MedDesertPlanner() {
   const realGaps = regions.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore);
   const sel = regions.find((r) => r.state === selected) ?? null;
 
+  // Live national KPIs for the active capability (derived from the loaded regions — no extra query).
+  const kpis = {
+    realGaps: realGaps.length,
+    dataPoor: regions.filter((r) => r.dataPoor).length,
+    facilities: regions.reduce((a, r) => a + r.nFacilities, 0),
+    strong: regions.reduce((a, r) => a + r.strong, 0),
+  };
+
   async function applyOverride(name: string) {
     if (!sel) return;
     const res = await fetch("/api/overrides", {
@@ -196,6 +204,17 @@ export default function MedDesertPlanner() {
         <section className="map-col">
           {loading && <div className="map-loading"><span className="map-loading__spin" />Loading {capability} coverage…<span className="map-loading__sub">querying Databricks</span></div>}
           <GapMap regions={regions} onSelect={setSelected} />
+          {!loading && regions.length > 0 && (
+            <div className="overlay overlay--tl kpis rise">
+              <div className="kpis__cap">{capability.toUpperCase()} · India</div>
+              <div className="kpis__row">
+                <div className="kpi"><span className="kpi__n kpi__n--gap">{kpis.realGaps}</span><span className="kpi__l">real gaps</span></div>
+                <div className="kpi"><span className="kpi__n">{kpis.dataPoor}</span><span className="kpi__l">data-poor</span></div>
+                <div className="kpi"><span className="kpi__n">{kpis.facilities.toLocaleString()}</span><span className="kpi__l">facilities</span></div>
+                <div className="kpi"><span className="kpi__n">{kpis.strong.toLocaleString()}</span><span className="kpi__l">strong evid.</span></div>
+              </div>
+            </div>
+          )}
           <div className="overlay overlay--bl legend rise">
             <div className="legend__title">{capability.toUpperCase()} care gap</div>
             <div className="legend__bar" style={{ background: `linear-gradient(90deg, ${gapColor(0)}, ${gapColor(0.3)}, ${gapColor(0.6)})` }} />

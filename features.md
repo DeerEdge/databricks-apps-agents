@@ -77,6 +77,10 @@ drills into facility records and **persists planning scenarios**.
       Demand side is now district-level; facility SUPPLY → district via PIN mapping is the remaining
       half (next).
 
+- [x] **MD9 — demo polish.** Live national KPI overlay on the map (real gaps / data-poor /
+      facilities / strong-evidence counts) that updates per capability — derived from loaded data,
+      no extra query. Browser-verified (ICU 24 gaps / 230 data-poor / 10,030 facilities).
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts
