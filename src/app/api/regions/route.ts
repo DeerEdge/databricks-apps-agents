@@ -13,6 +13,7 @@ export async function GET(req: Request) {
     const capRaw = (url.searchParams.get("capability") ?? "icu").toLowerCase();
     const capability = (CAPS as readonly string[]).includes(capRaw) ? capRaw : "icu";
 
+    const t0 = Date.now();
     const { rows } = await runSql(
       `SELECT state, n_facilities, strong, partial, weak, supply,
               institutional_birth, insurance_pct, need_index, scarcity, gap_score, data_poor
@@ -21,6 +22,7 @@ export async function GET(req: Request) {
        ORDER BY data_poor ASC, gap_score DESC`,
       [{ name: "cap", value: capability, type: "STRING" }]
     );
+    const ms = Date.now() - t0;
 
     const regions = rows.map((r) => ({
       state: String(r.state ?? ""),
@@ -37,7 +39,13 @@ export async function GET(req: Request) {
       dataPoor: r.data_poor === true || r.data_poor === "true",
     }));
 
-    return NextResponse.json({ ok: true, capability, count: regions.length, regions });
+    return NextResponse.json({
+      ok: true,
+      capability,
+      count: regions.length,
+      regions,
+      meta: { ms, rows: regions.length, source: "workspace.meddesert.region_gap", engine: "Databricks SQL" },
+    });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "unknown error" },

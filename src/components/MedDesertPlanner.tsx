@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass } from "@/lib/meddesert";
+import { explainGap } from "@/lib/reasoning";
+
+interface QueryMeta { ms: number; rows: number; source: string; engine: string }
 
 interface Facility {
   name: string;
@@ -36,6 +39,9 @@ export default function MedDesertPlanner() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [regionMeta, setRegionMeta] = useState<QueryMeta | null>(null);
+  const [facMeta, setFacMeta] = useState<QueryMeta | null>(null);
+  const [showMath, setShowMath] = useState(false);
 
   const loadScenarios = () =>
     fetch("/api/scenarios")
@@ -50,7 +56,7 @@ export default function MedDesertPlanner() {
     setLoading(true);
     fetch(`/api/regions?capability=${capability}`)
       .then((r) => r.json())
-      .then((j) => setRegions(j.ok ? j.regions : []))
+      .then((j) => { setRegions(j.ok ? j.regions : []); setRegionMeta(j.meta ?? null); })
       .catch(() => setRegions([]))
       .finally(() => setLoading(false));
   }, [capability]);
@@ -62,7 +68,7 @@ export default function MedDesertPlanner() {
     const ctrl = new AbortController();
     fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((j) => setFacilities(j.ok ? j.facilities : []))
+      .then((j) => { setFacilities(j.ok ? j.facilities : []); setFacMeta(j.meta ?? null); })
       .catch(() => { if (!ctrl.signal.aborted) setFacilities([]); })
       .finally(() => { if (!ctrl.signal.aborted) setFacLoading(false); });
     return () => ctrl.abort();
@@ -134,6 +140,11 @@ export default function MedDesertPlanner() {
             <div className="legend__bar" style={{ background: `linear-gradient(90deg, ${gapColor(0)}, ${gapColor(0.3)}, ${gapColor(0.6)})` }} />
             <div className="legend__scale"><span>covered</span><span>gap</span></div>
             <p className="legend__note">Gap = NFHS-5 need × trust-weighted facility scarcity. Grey = data-poor (not enough evidence to judge). Click a state to inspect.</p>
+            {regionMeta && (
+              <div className="obs obs--legend">
+                <span className="obs__dot" /> {regionMeta.engine} · {regionMeta.rows} regions · {regionMeta.ms}ms · <code>{regionMeta.source}</code>
+              </div>
+            )}
           </div>
         </section>
 
@@ -174,12 +185,45 @@ export default function MedDesertPlanner() {
                   <div className="cond"><span className="cond__label">Strong evid.</span><span className="cond__value">{sel.strong}</span></div>
                   <div className="cond"><span className="cond__label">Inst. birth</span><span className="cond__value">{sel.institutionalBirth ?? "—"}<small>%</small></span></div>
                 </div>
-                {sel.dataPoor && <p className="note">Too little evidence or no NFHS need data — treat with caution, don&apos;t conclude a real gap.</p>}
+                {(() => {
+                  const capLabel = CAPABILITIES.find((c) => c.key === capability)?.label ?? capability.toUpperCase();
+                  const ex = explainGap(sel, capLabel);
+                  return (
+                    <div className={`verdict verdict--${ex.verdict.kind}`}>
+                      <div className="verdict__head">{ex.verdict.headline}</div>
+                      <ul className="verdict__why">
+                        {ex.verdict.reasons.map((r, i) => <li key={i}>{r}</li>)}
+                      </ul>
+                      <button className="reveal" onClick={() => setShowMath((v) => !v)}>
+                        {showMath ? "Hide the math ▲" : "How this score was computed ▼"}
+                      </button>
+                      {showMath && (
+                        <ol className="cot">
+                          {ex.steps.map((s) => (
+                            <li key={s.n} className="cot__step">
+                              <div className="cot__row">
+                                <span className="cot__label">{s.label}</span>
+                                <span className="cot__value">{s.value}</span>
+                              </div>
+                              <code className="cot__formula">{s.formula}</code>
+                              <p className="cot__detail">{s.detail}</p>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="evid__head">
                   <span className="evid__title">Facilities with {capability.toUpperCase()} evidence</span>
                   {!facLoading && <span className="evid__count">{facilities.length}</span>}
                 </div>
+                {facMeta && !facLoading && (
+                  <div className="obs">
+                    <span className="obs__dot" /> {facMeta.rows} rows · {facMeta.ms}ms · <code>{facMeta.source}</code>
+                  </div>
+                )}
                 {facLoading && <p className="note">Loading facility records…</p>}
                 {!facLoading && facilities.length === 0 && (
                   <p className="note">No facility in {sel.state} carries any {capability.toUpperCase()} claim — the gap here is an absence of evidence, not a verified service.</p>

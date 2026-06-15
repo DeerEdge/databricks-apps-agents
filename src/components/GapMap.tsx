@@ -19,8 +19,13 @@ export interface Region {
   dataPoor: boolean;
   nFacilities: number;
   strong: number;
+  partial: number;
+  weak: number;
   supply: number;
   institutionalBirth: number | null;
+  insurancePct: number | null;
+  needIndex: number;
+  scarcity: number;
 }
 
 export default function GapMap({ regions, onSelect }: { regions: Region[]; onSelect: (state: string) => void }) {
