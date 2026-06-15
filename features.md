@@ -125,6 +125,15 @@ drills into facility records and **persists planning scenarios**.
       `district_gap` matches NFHS far better; consolidating state need onto the cleaner PIN-derived
       state key is the real fix.
 
+- [x] **MD17 — canonical NFHS state join (data-quality fix).** Root-caused why big states fell
+      into "data-poor": NFHS-5 spells states differently (MAHARASTRA, NCT OF DELHI, JAMMU KASHMIR)
+      than the facility/PIN names, so the exact-match join dropped them. Added a canonical key
+      (alpha-only, strip AND/THE, alias the two irreducible spellings) on both sides of
+      `region_gap ⋈ region_burden`. Verified: Maharashtra/Delhi/Tamil Nadu/Karnataka/Telangana/
+      W. Bengal/Andhra/J&K now carry real NFHS need and rank as *low* gaps (high institutional-birth
+      = low need) instead of false "data-poor". Real states 24→28; top gaps unchanged (Meghalaya,
+      Manipur, Jharkhand, Bihar). Live API confirms Maharashtra/Delhi dataPoor=false.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts
