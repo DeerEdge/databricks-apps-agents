@@ -1185,3 +1185,16 @@ select.input {
 .dist__bar { height: 7px; border-radius: 4px; background: var(--paper-sunk); overflow: hidden; }
 .dist__fill { display: block; height: 100%; border-radius: 4px; }
 .dist__val { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); text-align: right; }
+
+/* ── national KPI overlay (demo headline) ────────────── */
+.kpis {
+  background: rgba(255,255,255,0.94); backdrop-filter: blur(6px);
+  border: 1px solid var(--hair-strong); border-radius: 10px; box-shadow: var(--shadow);
+  padding: 11px 14px;
+}
+.kpis__cap { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; color: var(--ink-3); margin-bottom: 8px; }
+.kpis__row { display: flex; gap: 18px; }
+.kpi { display: flex; flex-direction: column; gap: 1px; }
+.kpi__n { font-family: var(--font-mono); font-size: 20px; line-height: 1; color: var(--ink); }
+.kpi__n--gap { color: #9b2226; }
+.kpi__l { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
