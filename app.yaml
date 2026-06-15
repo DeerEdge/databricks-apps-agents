@@ -1,0 +1,30 @@
+# Databricks App spec (Free Edition). Databricks injects PORT and runs this command;
+# `next start` binds 0.0.0.0:$PORT automatically.
+#
+# Non-secret runtime config goes here. SECRETS (DATABRICKS_TOKEN) must NOT be inlined —
+# set them as Databricks secrets / app resources and reference with valueFrom, or rely on
+# the app service principal's automatic auth. Never commit a token (see CLAUDE.md).
+command:
+  - npm
+  - run
+  - start
+
+env:
+  - name: NODE_ENV
+    value: production
+  # --- set these for your workspace (non-secret) ---
+  # - name: DATABRICKS_HOST
+  #   value: https://<workspace>.cloud.databricks.com
+  # - name: DATABRICKS_WAREHOUSE_ID
+  #   value: <warehouse-id>
+  # - name: LAKEBASE_INSTANCE
+  #   value: meddesert
+  # - name: LAKEBASE_HOST
+  #   value: <instance-read_write_dns>
+  # - name: LAKEBASE_USER
+  #   value: <app-service-principal-or-email>
+  # - name: LAKEBASE_DATABASE
+  #   value: databricks_postgres
+  # --- secret: reference a Databricks secret, never inline ---
+  # - name: DATABRICKS_TOKEN
+  #   valueFrom: meddesert-token
