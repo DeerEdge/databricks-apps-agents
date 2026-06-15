@@ -104,6 +104,11 @@ drills into facility records and **persists planning scenarios**.
       "Satyarthi Hospital" point highlighted its card; legend shows all four trust keys. Ties the
       geographic and evidence views into one coherent, premium interaction.
 
+- [x] **MD14 — Ask UI polish.** Redesigned the agent panel: pill-shaped input with an arrow
+      send button (spinner while loading), rounded suggestion chips, a "Reasoning" card with
+      numbered animated steps, and a tinted grounded-answer card. Cleaner, premium feel. Verified
+      live (chip → numbered steps → answer). Build clean, 58 tests pass.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts
