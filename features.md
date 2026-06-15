@@ -141,6 +141,12 @@ drills into facility records and **persists planning scenarios**.
       value "Mp" matched inside "co**mp**are", and "Bihar?" failed token match) → switched to
       punctuation-aware token matching. 70 tests pass; verified live across all 5 intents + in the UI.
 
+- [x] **MD19 — cross-capability profile.** Selecting a state shows its gap across ALL six
+      capabilities (ordered worst-real-gap first, data-poor last) so a planner sees which clinical
+      service is most lacking *there*; clicking a row switches the active capability. `/api/state-
+      capabilities` (one query) + `orderCapabilityProfile` pure (2 tests). Verified live: Bihar →
+      oncology 0.19 top, click Maternity → tab switches. 72 tests, build clean.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts

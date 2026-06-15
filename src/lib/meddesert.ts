@@ -39,6 +39,17 @@ export function trustColor(trust: string): string {
   return ({ strong: "#2f9e57", partial: "#e0a32e", weak: "#cf6b52", none: "#9aa3ad" } as Record<string, string>)[trust] ?? "#cf6b52";
 }
 
+export interface CapabilityGap { capability: string; gapScore: number; dataPoor: boolean; nFacilities: number; strong: number }
+
+/** Order a state's per-capability gaps for display: rankable first (worst gap → best),
+ *  data-poor last. Stable, pure → testable. */
+export function orderCapabilityProfile(items: CapabilityGap[]): CapabilityGap[] {
+  return [...items].sort((a, b) => {
+    if (a.dataPoor !== b.dataPoor) return a.dataPoor ? 1 : -1;
+    return b.gapScore - a.gapScore;
+  });
+}
+
 /** Choropleth fill for a gap score 0..1 (low gap = teal, high gap = deep red). */
 export function gapColor(score: number): string {
   const s = Math.max(0, Math.min(1, score));

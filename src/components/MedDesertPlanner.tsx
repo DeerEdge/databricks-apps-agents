@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
-import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState } from "@/lib/meddesert";
+import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState, orderCapabilityProfile, type CapabilityGap } from "@/lib/meddesert";
 import { explainGap, dataPoorReason } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
@@ -63,6 +63,7 @@ export default function MedDesertPlanner() {
   const [ovNote, setOvNote] = useState("");
   const [districts, setDistricts] = useState<District[]>([]);
   const [showDistricts, setShowDistricts] = useState(false);
+  const [capProfile, setCapProfile] = useState<CapabilityGap[]>([]);
   const [briefId, setBriefId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [highlightFac, setHighlightFac] = useState<string | null>(null);
@@ -132,6 +133,17 @@ export default function MedDesertPlanner() {
       .catch(() => {});
     return () => ctrl.abort();
   }, [selected, capability]);
+
+  // All-capability profile for the selected state (capability-agnostic).
+  useEffect(() => {
+    if (!selected) { setCapProfile([]); return; }
+    const ctrl = new AbortController();
+    fetch(`/api/state-capabilities?state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((j) => setCapProfile(j.ok ? j.capabilities : []))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [selected]);
 
   // District-level gap (supply via PIN × NFHS-5 demand) for the selected state × capability.
   useEffect(() => {
@@ -426,6 +438,30 @@ export default function MedDesertPlanner() {
                           ))}
                         </ol>
                       )}
+                    </div>
+                  );
+                })()}
+
+                {capProfile.length > 0 && (() => {
+                  const ordered = orderCapabilityProfile(capProfile);
+                  const maxGap = ordered.find((c) => !c.dataPoor)?.gapScore || 1;
+                  return (
+                    <div className="prof">
+                      <div className="prof__title">Gap across all capabilities in {sel.state}</div>
+                      {ordered.map((c) => {
+                        const active = c.capability === capability;
+                        return (
+                          <button key={c.capability} className={`prof__row${active ? " prof__row--on" : ""}`}
+                            onClick={() => CAPABILITIES.some((x) => x.key === c.capability) && setCapability(c.capability as CapabilityKey)}>
+                            <span className="prof__cap">{c.capability.toUpperCase()}</span>
+                            <span className="prof__bar">
+                              <span className="prof__fill" style={{ width: c.dataPoor ? "100%" : `${Math.round((c.gapScore / maxGap) * 100)}%`, background: c.dataPoor ? "var(--paper-sunk)" : gapColor(c.gapScore) }} />
+                            </span>
+                            <span className="prof__val">{c.dataPoor ? "data-poor" : c.gapScore.toFixed(2)}</span>
+                          </button>
+                        );
+                      })}
+                      <p className="note">Same state, every clinical capability — pick the biggest real gap. Click a row to switch the map to that capability.</p>
                     </div>
                   );
                 })()}
