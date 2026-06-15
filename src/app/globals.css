@@ -1316,3 +1316,11 @@ select.input {
 .prof__bar { height: 8px; border-radius: 4px; background: var(--paper-sunk); overflow: hidden; }
 .prof__fill { display: block; height: 100%; border-radius: 4px; }
 .prof__val { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); text-align: right; }
+
+/* ── onboarding / how-to guide (empty state) ─────────── */
+.guide__steps { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+.guide__steps li { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.guide__steps b { color: var(--ink); }
+.guide__keys { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 10px 11px; background: var(--paper-sunk); border-radius: 8px; }
+.guide__key { display: flex; align-items: center; gap: 8px; }
+.guide__key-d { font-size: 11.5px; color: var(--ink-2); }
