@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
-import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState, orderCapabilityProfile, type CapabilityGap } from "@/lib/meddesert";
+import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState, orderCapabilityProfile, countByTrust, type CapabilityGap } from "@/lib/meddesert";
 import { explainGap, dataPoorReason } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
@@ -64,6 +64,7 @@ export default function MedDesertPlanner() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [showDistricts, setShowDistricts] = useState(false);
   const [capProfile, setCapProfile] = useState<CapabilityGap[]>([]);
+  const [trustFilter, setTrustFilter] = useState<"all" | "strong" | "partial" | "weak">("all");
   const [briefId, setBriefId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [highlightFac, setHighlightFac] = useState<string | null>(null);
@@ -91,7 +92,7 @@ export default function MedDesertPlanner() {
       .catch(() => {});
 
   useEffect(() => { loadScenarios(); }, []);
-  useEffect(() => { setNote(""); setSaveErr(null); }, [selected, capability]);
+  useEffect(() => { setNote(""); setSaveErr(null); setTrustFilter("all"); }, [selected, capability]);
 
   useEffect(() => {
     setLoading(true);
@@ -537,8 +538,22 @@ export default function MedDesertPlanner() {
                 {!facLoading && facilities.length === 0 && (
                   <p className="note">No facility in {sel.state} carries any {capability.toUpperCase()} claim — the gap here is an absence of evidence, not a verified service.</p>
                 )}
+                {!facLoading && facilities.length > 0 && (() => {
+                  const c = countByTrust(facilities);
+                  const opts: [typeof trustFilter, string, number][] = [
+                    ["all", "All", c.total], ["strong", "Strong", c.strong], ["partial", "Partial", c.partial], ["weak", "Weak", c.weak],
+                  ];
+                  return (
+                    <div className="tfilter">
+                      {opts.map(([k, label, n]) => (
+                        <button key={k} className={`tfilter__btn${trustFilter === k ? " tfilter__btn--on" : ""}`}
+                          disabled={n === 0} onClick={() => setTrustFilter(k)}>{label} <span className="tfilter__n">{n}</span></button>
+                      ))}
+                    </div>
+                  );
+                })()}
                 <ul className="evid">
-                  {facilities.map((f, i) => {
+                  {facilities.filter((f) => trustFilter === "all" || f.trust === trustFilter).map((f, i) => {
                     const hl = highlightFac === f.name;
                     return (
                     <li key={`${f.name}-${i}`} className={`fac${hl ? " fac--hl" : ""}`} ref={hl ? hlRef : null}>
