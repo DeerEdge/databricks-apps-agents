@@ -82,6 +82,11 @@ drills into facility records and **persists planning scenarios**.
       facilities / strong-evidence counts) that updates per capability — derived from loaded data,
       no extra query. Browser-verified (ICU 24 gaps / 230 data-poor / 10,030 facilities).
 
+- [x] **MD10 — API-route tests.** Added `vitest.config.ts` (`@/` alias) + route tests for
+      `/api/regions`, `/api/facilities`, `/api/scenarios` (Lakebase mocked), `/api/ask` — success,
+      validation 400s, fail-closed 500s, parameterization, and Lakebase-not-touched-on-bad-input.
+      51 tests total (was 35). Satisfies CLAUDE.md "test API routes with the Databricks client mocked".
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts
