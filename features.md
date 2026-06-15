@@ -87,6 +87,12 @@ drills into facility records and **persists planning scenarios**.
       validation 400s, fail-closed 500s, parameterization, and Lakebase-not-touched-on-bad-input.
       51 tests total (was 35). Satisfies CLAUDE.md "test API routes with the Databricks client mocked".
 
+- [x] **MD11 — facility points on the map.** Selecting a state plots its facilities (lat/lon from
+      the dataset) as points colored by trust (green=strong … grey=no-claim); the map zooms to fit,
+      and hovering a point shows its name, trust, and cited text. `trustColor` pure + test. Verified:
+      Bihar → 60 points, zoom 4.2→7.7, green+amber by trust, hover citation. Reliable geographic
+      depth without district-polygon name-matching risk.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts

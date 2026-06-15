@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { normalizeState, gapColor } from "@/lib/meddesert";
+import { normalizeState, gapColor, trustColor, trustLabel } from "@/lib/meddesert";
 
 const STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
@@ -28,12 +28,55 @@ export interface Region {
   scarcity: number;
 }
 
-export default function GapMap({ regions, onSelect }: { regions: Region[]; onSelect: (state: string) => void }) {
+export interface FacilityPoint {
+  name: string;
+  trust: string;
+  citation: string;
+  lat: number | null;
+  lon: number | null;
+}
+
+export default function GapMap({
+  regions,
+  facilities = [],
+  onSelect,
+}: {
+  regions: Region[];
+  facilities?: FacilityPoint[];
+  onSelect: (state: string) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const geoRef = useRef<GeoJSON.FeatureCollection | null>(null);
   const regionsRef = useRef<Region[]>(regions);
   regionsRef.current = regions;
+  const facRef = useRef<FacilityPoint[]>(facilities);
+  facRef.current = facilities;
+
+  function facCollection(): GeoJSON.FeatureCollection {
+    return {
+      type: "FeatureCollection",
+      features: facRef.current
+        .filter((f) => f.lat != null && f.lon != null && Number.isFinite(f.lat) && Number.isFinite(f.lon))
+        .map((f) => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [f.lon as number, f.lat as number] },
+          properties: { name: f.name, trust: f.trust, trustLabel: trustLabel(f.trust), citation: f.citation, color: trustColor(f.trust) },
+        })),
+    };
+  }
+
+  function paintFacilities() {
+    const map = mapRef.current;
+    if (!map || !map.getSource("facilities")) return;
+    const fc = facCollection();
+    (map.getSource("facilities") as maplibregl.GeoJSONSource).setData(fc);
+    if (fc.features.length) {
+      const b = new maplibregl.LngLatBounds();
+      fc.features.forEach((ft) => b.extend((ft.geometry as GeoJSON.Point).coordinates as [number, number]));
+      map.fitBounds(b, { padding: 70, maxZoom: 8.5, duration: 700 });
+    }
+  }
 
   function paint() {
     const map = mapRef.current;
@@ -86,6 +129,28 @@ export default function GapMap({ regions, onSelect }: { regions: Region[]; onSel
         const st = e.features?.[0]?.properties?.state;
         if (st) onSelect(String(st));
       });
+
+      // Facility points for the selected state, colored by trust.
+      map.addSource("facilities", { type: "geojson", data: facCollection() });
+      map.addLayer({
+        id: "facility-pts", type: "circle", source: "facilities",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.2, 8, 6.5],
+          "circle-color": ["get", "color"],
+          "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.2, "circle-opacity": 0.9,
+        },
+      });
+      const fpop = new maplibregl.Popup({ closeButton: false, className: "map-popup", offset: 8 });
+      map.on("mouseenter", "facility-pts", (e) => {
+        const p = e.features?.[0]?.properties as Record<string, unknown> | undefined;
+        if (!p) return;
+        map.getCanvas().style.cursor = "pointer";
+        fpop.setLngLat((e.features![0].geometry as GeoJSON.Point).coordinates as [number, number]).setHTML(
+          `<div class="pop__name">${esc(p.name)}</div><span class="pop__tag">${esc(p.trustLabel)}</span>${p.citation ? `<div class="pop__cite">“${esc(p.citation)}”</div>` : ""}`
+        ).addTo(map);
+      });
+      map.on("mouseleave", "facility-pts", () => { map.getCanvas().style.cursor = ""; fpop.remove(); });
+      paintFacilities();
     });
 
     return () => { map.remove(); mapRef.current = null; };
@@ -93,6 +158,7 @@ export default function GapMap({ regions, onSelect }: { regions: Region[]; onSel
   }, []);
 
   useEffect(() => { paint(); }, [regions]);
+  useEffect(() => { paintFacilities(); }, [facilities]);
 
   return <div className="map" ref={containerRef} />;
 }

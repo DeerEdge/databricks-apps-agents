@@ -37,6 +37,8 @@ export async function GET(req: Request) {
       citation: String(r.citation ?? "").trim(),
       structured: r.structured === true || r.structured === "true",
       claim: r.claim === true || r.claim === "true",
+      lat: r.latitude == null || r.latitude === "" ? null : Number(r.latitude),
+      lon: r.longitude == null || r.longitude === "" ? null : Number(r.longitude),
     }));
 
     return NextResponse.json({
