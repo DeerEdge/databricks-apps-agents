@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
+import AgentAsk from "@/components/AgentAsk";
 import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass } from "@/lib/meddesert";
 import { explainGap } from "@/lib/reasoning";
 
@@ -149,6 +150,11 @@ export default function MedDesertPlanner() {
         </section>
 
         <aside className="rail">
+          <AgentAsk onResult={(cap, state) => {
+            if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
+            setSelected(state);
+          }} />
+
           <section className="panel">
             <div className="panel__head">
               <div className="panel__eyebrow">Highest-risk gaps</div>

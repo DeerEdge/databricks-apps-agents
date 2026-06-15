@@ -1128,3 +1128,33 @@ select.input {
 .obs code { font-size: 10px; color: var(--ink-2); }
 .obs__dot { width: 6px; height: 6px; border-radius: 50%; background: #2f9e57; box-shadow: 0 0 0 3px rgba(47,158,87,0.15); }
 .obs--legend { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hair); }
+
+/* ── planner agent (MD6) ─────────────────────────────── */
+.agent__form { display: flex; gap: 8px; }
+.agent__input {
+  flex: 1; min-width: 0; font-family: var(--font-sans); font-size: 13px; color: var(--ink);
+  padding: 9px 11px; border: 1px solid var(--hair-strong); border-radius: 6px; background: var(--paper);
+}
+.agent__input:focus { outline: none; border-color: var(--accent); }
+.agent__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.agent__chips .chip {
+  font-family: var(--font-sans); font-size: 11.5px; letter-spacing: 0; text-transform: none;
+  padding: 5px 9px; border: 1px solid var(--hair-strong); border-radius: 999px; background: var(--paper);
+  color: var(--ink-2); cursor: pointer;
+}
+.agent__chips .chip:hover:not(:disabled) { background: var(--paper-sunk); color: var(--ink); }
+.agent__steps {
+  margin: 12px 0 0; padding: 10px 12px; list-style: none; border-radius: 8px;
+  background: var(--paper-sunk); display: flex; flex-direction: column; gap: 5px;
+}
+.agent__step { font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: var(--ink-2); }
+.agent__step strong { color: var(--accent); font-weight: 600; }
+.agent__step--pending { color: var(--ink-3); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.4; } }
+.agent__answer { margin-top: 12px; }
+.agent__text { font-size: 13.5px; line-height: 1.55; color: var(--ink); }
+.agent__text strong { color: #9b2226; }
+.agent__cites { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.agent__cite { padding: 8px 10px; border: 1px solid var(--hair); border-radius: 7px; background: var(--paper-raised); }
+.agent__cite-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.agent__cite-name { font-size: 12.5px; font-weight: 600; color: var(--ink); }

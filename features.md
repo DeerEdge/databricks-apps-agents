@@ -56,7 +56,12 @@ drills into facility records and **persists planning scenarios**.
       gap) + a plain-language verdict (real-gap vs data-poor, with the exact reasons). APIs return
       `meta` (rows, latency, source table, engine); UI shows live observability strips on the map
       and evidence panel. 5 reasoning tests. Browser-verified.
-- [ ] **MD6 — agent.** NL "where are ICU gaps in Bihar?" grounded in the evidence/region tables.
+- [x] **MD6 — planner agent.** `/api/ask` grounded NL agent: `agent.ts` (pure) parses
+      capability + state + intent (gap_in_state / top_gaps / data_poor / facility_evidence) and
+      plans tool calls; the route runs parameterized queries over `region_gap` +
+      `facility_capability` and composes a cited answer + reasoning steps. `AgentAsk` UI streams
+      the steps (chain-of-thought), shows the answer + trust-badged citations, and drives the app
+      (sets capability tab + selects the state). 10 agent tests. Browser-verified across 4 intents.
 - [ ] **MD7 — deploy as a Databricks App** (`app.yaml`) on Free Edition; non-technical polish.
 - [ ] **MD2b — district granularity.** Map facilities to district via PIN /
       point-in-polygon so coverage isn't blurred by the messy state field.
