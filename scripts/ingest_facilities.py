@@ -162,6 +162,17 @@ def main():
         LEFT JOIN workspace.meddesert.region_burden b ON c.state_key = b.state_key
     """)
 
+    print("→ district_need (NFHS-5 demand-side need, district granularity)", flush=True)
+    run_sql(f"""
+        CREATE OR REPLACE VIEW workspace.meddesert.district_need AS
+        SELECT upper(trim(state_ut)) AS state_key, state_ut AS state, district_name,
+               round(try_cast(regexp_replace(institutional_birth_5y_pct, '[()*]', '') AS DOUBLE), 1) AS institutional_birth,
+               round(try_cast(regexp_replace(hh_member_covered_health_insurance_pct, '[()*]', '') AS DOUBLE), 1) AS insurance_pct,
+               round(coalesce((100 - try_cast(regexp_replace(institutional_birth_5y_pct, '[()*]', '') AS DOUBLE)) / 100.0, 0.5), 3) AS need_index
+        FROM {nfhs}
+        WHERE district_name IS NOT NULL AND trim(district_name) <> ''
+    """)
+
     print("→ verify trust distribution", flush=True)
     rows = run_sql("""
         SELECT capability, trust, count(*) n

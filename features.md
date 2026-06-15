@@ -71,8 +71,11 @@ drills into facility records and **persists planning scenarios**.
       hydrate on revisit and show alongside the AI assessment (both visible — honest). `override.ts`
       validation (pure, 5 tests); `/api/overrides` GET/POST/DELETE. Browser-verified: hydrate,
       create, undo; 400 on invalid trust. Satisfies the prompt's "persist overrides / review decisions".
-- [ ] **MD2b — district granularity.** Map facilities to district via PIN /
-      point-in-polygon so coverage isn't blurred by the messy state field.
+- [~] **MD2b — district granularity (demand side).** `district_need` view (NFHS-5 per district)
+      + `/api/districts?state=`; selected-state panel shows a ranked district need breakdown
+      (institutional-birth %, need bar). Verified: Bihar → 38 districts, Kishanganj worst (54.6%).
+      Demand side is now district-level; facility SUPPLY → district via PIN mapping is the remaining
+      half (next).
 
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
