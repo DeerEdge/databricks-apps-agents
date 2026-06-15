@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeState, gapColor, trustLabel, trustClass, CAPABILITIES } from "./meddesert";
+import { normalizeState, gapColor, trustLabel, trustClass, trustColor, CAPABILITIES } from "./meddesert";
 
 describe("normalizeState", () => {
   it("strips diacritics + uppercases so geoBoundaries matches NFHS", () => {
@@ -34,6 +34,14 @@ describe("trustClass", () => {
   });
   it("falls back to weak for unknown values", () => {
     expect(trustClass("garbage")).toBe("trust--weak");
+  });
+});
+
+describe("trustColor", () => {
+  it("distinct colors per trust, weak fallback for unknown", () => {
+    expect(trustColor("strong")).toBe("#2f9e57");
+    expect(trustColor("none")).toBe("#9aa3ad");
+    expect(trustColor("???")).toBe(trustColor("weak"));
   });
 });
 

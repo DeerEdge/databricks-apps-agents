@@ -34,6 +34,11 @@ export function trustClass(trust: string): string {
   return ["strong", "partial", "weak", "none"].includes(trust) ? `trust--${trust}` : "trust--weak";
 }
 
+/** Map-marker color for a facility's trust signal (green = strong … grey = no claim). */
+export function trustColor(trust: string): string {
+  return ({ strong: "#2f9e57", partial: "#e0a32e", weak: "#cf6b52", none: "#9aa3ad" } as Record<string, string>)[trust] ?? "#cf6b52";
+}
+
 /** Choropleth fill for a gap score 0..1 (low gap = teal, high gap = deep red). */
 export function gapColor(score: number): string {
   const s = Math.max(0, Math.min(1, score));

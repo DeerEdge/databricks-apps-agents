@@ -1198,3 +1198,6 @@ select.input {
 .kpi__n { font-family: var(--font-mono); font-size: 20px; line-height: 1; color: var(--ink); }
 .kpi__n--gap { color: #9b2226; }
 .kpi__l { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
+
+/* ── facility point popup citation ───────────────────── */
+.pop__cite { margin-top: 5px; max-width: 230px; font-size: 11px; line-height: 1.4; color: var(--ink-2); font-style: italic; }

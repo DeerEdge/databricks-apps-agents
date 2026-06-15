@@ -26,6 +26,8 @@ interface Facility {
   citation: string;
   structured: boolean;
   claim: boolean;
+  lat: number | null;
+  lon: number | null;
 }
 
 interface Scenario {
@@ -213,7 +215,7 @@ export default function MedDesertPlanner() {
       <main className="stage">
         <section className="map-col">
           {loading && <div className="map-loading"><span className="map-loading__spin" />Loading {capability} coverage…<span className="map-loading__sub">querying Databricks</span></div>}
-          <GapMap regions={regions} onSelect={setSelected} />
+          <GapMap regions={regions} facilities={facilities} onSelect={setSelected} />
           {!loading && regions.length > 0 && (
             <div className="overlay overlay--tl kpis rise">
               <div className="kpis__cap">{capability.toUpperCase()} · India</div>
