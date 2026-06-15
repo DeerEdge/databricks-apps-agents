@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeState, gapColor, trustLabel, trustClass, trustColor, CAPABILITIES } from "./meddesert";
+import { normalizeState, gapColor, trustLabel, trustClass, trustColor, orderCapabilityProfile, CAPABILITIES } from "./meddesert";
 
 describe("normalizeState", () => {
   it("strips diacritics + uppercases so geoBoundaries matches NFHS", () => {
@@ -42,6 +42,22 @@ describe("trustColor", () => {
     expect(trustColor("strong")).toBe("#2f9e57");
     expect(trustColor("none")).toBe("#9aa3ad");
     expect(trustColor("???")).toBe(trustColor("weak"));
+  });
+});
+
+describe("orderCapabilityProfile", () => {
+  it("ranks by gap desc, pushes data-poor to the end", () => {
+    const out = orderCapabilityProfile([
+      { capability: "icu", gapScore: 0.1, dataPoor: false, nFacilities: 50, strong: 5 },
+      { capability: "trauma", gapScore: 0.9, dataPoor: true, nFacilities: 2, strong: 0 },
+      { capability: "maternity", gapScore: 0.3, dataPoor: false, nFacilities: 60, strong: 8 },
+    ]);
+    expect(out.map((x) => x.capability)).toEqual(["maternity", "icu", "trauma"]);
+  });
+  it("does not mutate the input", () => {
+    const input = [{ capability: "icu", gapScore: 0.1, dataPoor: false, nFacilities: 1, strong: 0 }];
+    orderCapabilityProfile(input);
+    expect(input[0].capability).toBe("icu");
   });
 });
 
