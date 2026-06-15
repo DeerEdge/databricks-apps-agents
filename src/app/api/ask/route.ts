@@ -48,7 +48,31 @@ export async function POST(req: Request) {
     let citations: Citation[] = [];
     let focusState: string | null = parsed.state;
 
-    if (parsed.intent === "gap_in_state" || parsed.intent === "facility_evidence") {
+    if (parsed.intent === "compare") {
+      const found = parsed.states
+        .map((s) => regions.find((r) => r.state === s))
+        .filter((r): r is GapInputs => Boolean(r));
+      if (found.length < 2) {
+        const missing = parsed.states.filter((s) => !regions.some((r) => r.state === s));
+        answer = `I couldn't compare — no ${cap} data for ${missing.join(", ") || "one of those regions"}.`;
+        focusState = found[0]?.state ?? null;
+      } else {
+        const [a, b] = found;
+        const desc = (r: GapInputs) =>
+          r.dataPoor ? `${r.state} is data-poor (${explainGap(r, cap).verdict.reasons[0]})`
+            : `${r.state} has a gap of ${r.gapScore.toFixed(2)} (need ${r.needIndex.toFixed(2)}, ${r.strong} strong / ${r.nFacilities} facilities)`;
+        const rankable = found.filter((r) => !r.dataPoor).sort((x, y) => y.gapScore - x.gapScore);
+        const worse = rankable[0];
+        const verdict = rankable.length === 2
+          ? `**${worse.state} has the larger ${cap} gap** (${worse.gapScore.toFixed(2)} vs ${rankable[1].gapScore.toFixed(2)}) — prioritize it.`
+          : rankable.length === 1
+            ? `Only ${worse.state} is rankable; the other is data-poor and can't be confidently compared.`
+            : "Both are data-poor, so neither can be confidently ranked.";
+        answer = `${desc(a)}; ${desc(b)}. ${verdict}`;
+        focusState = (worse ?? a).state;
+        if (worse) citations = await fetchCitations(parsed.capability, worse.state);
+      }
+    } else if (parsed.intent === "gap_in_state" || parsed.intent === "facility_evidence") {
       const region = regions.find((r) => r.state === parsed.state);
       if (!region) {
         answer = `I have no ${cap} data for ${parsed.state}. Try another state or ask for the worst gaps nationally.`;

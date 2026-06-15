@@ -134,6 +134,13 @@ drills into facility records and **persists planning scenarios**.
       = low need) instead of false "data-poor". Real states 24→28; top gaps unchanged (Meghalaya,
       Manipur, Jharkhand, Bihar). Live API confirms Maharashtra/Delhi dataPoor=false.
 
+- [x] **MD18 — agent COMPARE intent.** The planner agent now handles "compare ICU in Bihar and
+      Kerala" → contrasts need / trust-weighted supply / gap score for both regions, names the
+      higher-gap one to prioritize, and cites its evidence. `detectStates` (multi-state, ordered)
+      + compare branch in `/api/ask`. Caught & fixed a real substring-match bug (the messy state
+      value "Mp" matched inside "co**mp**are", and "Bihar?" failed token match) → switched to
+      punctuation-aware token matching. 70 tests pass; verified live across all 5 intents + in the UI.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts

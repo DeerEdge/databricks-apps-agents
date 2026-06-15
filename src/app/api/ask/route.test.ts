@@ -31,6 +31,18 @@ describe("POST /api/ask", () => {
     expect(j.steps.length).toBeGreaterThan(1);
   });
 
+  it("compares two states and names the higher-gap one", async () => {
+    mockRun
+      .mockResolvedValueOnce({ columns: [], rows: [region("Bihar", 0.30), region("Kerala", 0.05)] }) // region_gap
+      .mockResolvedValueOnce({ columns: [], rows: [{ name: "H", trust: "strong", citation: "ICU beds" }] }); // citations for worse
+    const res = await POST(mkReq({ question: "compare ICU in Bihar and Kerala" }));
+    const j = await res.json();
+    expect(j.parsed.intent).toBe("compare");
+    expect(j.answer).toMatch(/Bihar has the larger ICU gap/);
+    expect(j.focusState).toBe("Bihar");
+    expect(j.citations[0].citation).toBe("ICU beds");
+  });
+
   it("resolves a state question and pulls citations", async () => {
     mockRun
       .mockResolvedValueOnce({ columns: [], rows: [region("Bihar", 0.19)] }) // region_gap
