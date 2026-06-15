@@ -162,6 +162,13 @@ drills into facility records and **persists planning scenarios**.
       "Weak 0" here means weak rows fell outside the cap, not that none exist — a known LIMIT
       artifact; a per-trust count from the aggregate would be more complete.
 
+- [x] **MD22 — accurate trust filter (fixes MD21 self-critique).** Trust filtering is now
+      server-side (`/api/facilities?trust=`), so each level's full set is reachable (no longer
+      capped out by a strong-heavy top-60), and the chip counts come from the state aggregate
+      (`region_gap` strong/partial/weak). Verified live: Bihar ICU chips All 101 / Strong 39 /
+      Partial 51 / Weak 11 (was Weak 0); clicking Weak loads all 11 weak facilities. +2 route
+      tests (trust bound / invalid ignored). 76 tests, build clean.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
-import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState, orderCapabilityProfile, countByTrust, type CapabilityGap } from "@/lib/meddesert";
+import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState, orderCapabilityProfile, type CapabilityGap } from "@/lib/meddesert";
 import { explainGap, dataPoorReason } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
@@ -104,17 +104,19 @@ export default function MedDesertPlanner() {
   }, [capability]);
 
   // Drill-in: load the facility records (with cited evidence) behind the selected state.
+  // Trust filter is applied server-side so each level's full set is reachable.
   useEffect(() => {
     if (!selected) { setFacilities([]); return; }
     setFacLoading(true);
     const ctrl = new AbortController();
-    fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+    const tq = trustFilter === "all" ? "" : `&trust=${trustFilter}`;
+    fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}${tq}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((j) => { setFacilities(j.ok ? j.facilities : []); setFacMeta(j.meta ?? null); })
       .catch(() => { if (!ctrl.signal.aborted) setFacilities([]); })
       .finally(() => { if (!ctrl.signal.aborted) setFacLoading(false); });
     return () => ctrl.abort();
-  }, [selected, capability]);
+  }, [selected, capability, trustFilter]);
 
   // Load any planner trust overrides for the selected scope.
   useEffect(() => {
@@ -534,14 +536,12 @@ export default function MedDesertPlanner() {
                     <span className="obs__dot" /> {facMeta.rows} rows · {facMeta.ms}ms · <code>{facMeta.source}</code>
                   </div>
                 )}
-                {facLoading && <p className="note">Loading facility records…</p>}
-                {!facLoading && facilities.length === 0 && (
-                  <p className="note">No facility in {sel.state} carries any {capability.toUpperCase()} claim — the gap here is an absence of evidence, not a verified service.</p>
-                )}
-                {!facLoading && facilities.length > 0 && (() => {
-                  const c = countByTrust(facilities);
+                {/* Trust filter chips — counts from the state aggregate (region_gap), so they
+                    reflect ALL facilities of each trust, not just the loaded top-60. */}
+                {(sel.strong + sel.partial + sel.weak) > 0 && (() => {
                   const opts: [typeof trustFilter, string, number][] = [
-                    ["all", "All", c.total], ["strong", "Strong", c.strong], ["partial", "Partial", c.partial], ["weak", "Weak", c.weak],
+                    ["all", "All", sel.strong + sel.partial + sel.weak],
+                    ["strong", "Strong", sel.strong], ["partial", "Partial", sel.partial], ["weak", "Weak", sel.weak],
                   ];
                   return (
                     <div className="tfilter">
@@ -552,8 +552,12 @@ export default function MedDesertPlanner() {
                     </div>
                   );
                 })()}
+                {facLoading && <p className="note">Loading facility records…</p>}
+                {!facLoading && facilities.length === 0 && (
+                  <p className="note">No facility in {sel.state} carries any {capability.toUpperCase()} claim — the gap here is an absence of evidence, not a verified service.</p>
+                )}
                 <ul className="evid">
-                  {facilities.filter((f) => trustFilter === "all" || f.trust === trustFilter).map((f, i) => {
+                  {facilities.map((f, i) => {
                     const hl = highlightFac === f.name;
                     return (
                     <li key={`${f.name}-${i}`} className={`fac${hl ? " fac--hl" : ""}`} ref={hl ? hlRef : null}>

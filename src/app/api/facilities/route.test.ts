@@ -31,6 +31,21 @@ describe("GET /api/facilities", () => {
     ]));
   });
 
+  it("passes a valid trust filter as a bound parameter", async () => {
+    mockRun.mockResolvedValue({ columns: [], rows: [] });
+    const res = await GET(new Request("http://x/api/facilities?capability=icu&state=Bihar&trust=strong"));
+    const j = await res.json();
+    expect(j.trust).toBe("strong");
+    expect(mockRun.mock.calls[0][1]).toEqual(expect.arrayContaining([expect.objectContaining({ name: "trust", value: "strong" })]));
+  });
+
+  it("ignores an invalid trust value (no trust param bound)", async () => {
+    mockRun.mockResolvedValue({ columns: [], rows: [] });
+    const res = await GET(new Request("http://x/api/facilities?capability=icu&state=Bihar&trust=amazing"));
+    expect((await res.json()).trust).toBe(null);
+    expect(mockRun.mock.calls[0][1]).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: "trust" })]));
+  });
+
   it("defaults an unknown capability to icu", async () => {
     mockRun.mockResolvedValue({ columns: [], rows: [] });
     await GET(new Request("http://x/api/facilities?capability=xray&state=Bihar"));
