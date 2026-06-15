@@ -40,11 +40,15 @@ export default function GapMap({
   regions,
   facilities = [],
   onSelect,
+  onFacilityClick,
 }: {
   regions: Region[];
   facilities?: FacilityPoint[];
   onSelect: (state: string) => void;
+  onFacilityClick?: (name: string) => void;
 }) {
+  const onFacilityClickRef = useRef(onFacilityClick);
+  onFacilityClickRef.current = onFacilityClick;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const geoRef = useRef<GeoJSON.FeatureCollection | null>(null);
@@ -150,6 +154,10 @@ export default function GapMap({
         ).addTo(map);
       });
       map.on("mouseleave", "facility-pts", () => { map.getCanvas().style.cursor = ""; fpop.remove(); });
+      map.on("click", "facility-pts", (e) => {
+        const name = e.features?.[0]?.properties?.name;
+        if (name) onFacilityClickRef.current?.(String(name));
+      });
       paintFacilities();
     });
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
-import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass } from "@/lib/meddesert";
+import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor } from "@/lib/meddesert";
 import { explainGap } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
@@ -65,6 +65,16 @@ export default function MedDesertPlanner() {
   const [showDistricts, setShowDistricts] = useState(false);
   const [briefId, setBriefId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [highlightFac, setHighlightFac] = useState<string | null>(null);
+  const hlRef = useRef<HTMLLIElement | null>(null);
+
+  // When a facility point on the map is clicked, scroll its evidence card into view.
+  useEffect(() => {
+    if (!highlightFac) return;
+    hlRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setHighlightFac(null), 2200);
+    return () => clearTimeout(t);
+  }, [highlightFac]);
 
   const loadScenarios = () =>
     fetch("/api/scenarios")
@@ -226,7 +236,7 @@ export default function MedDesertPlanner() {
       <main className="stage">
         <section className="map-col">
           {loading && <div className="map-loading"><span className="map-loading__spin" />Loading {capability} coverage…<span className="map-loading__sub">querying Databricks</span></div>}
-          <GapMap regions={regions} facilities={facilities} onSelect={setSelected} />
+          <GapMap regions={regions} facilities={facilities} onSelect={setSelected} onFacilityClick={setHighlightFac} />
           {!loading && regions.length > 0 && (
             <div className="overlay overlay--tl kpis rise">
               <div className="kpis__cap">{capability.toUpperCase()} · India</div>
@@ -243,6 +253,16 @@ export default function MedDesertPlanner() {
             <div className="legend__bar" style={{ background: `linear-gradient(90deg, ${gapColor(0)}, ${gapColor(0.3)}, ${gapColor(0.6)})` }} />
             <div className="legend__scale"><span>covered</span><span>gap</span></div>
             <p className="legend__note">Gap = NFHS-5 need × trust-weighted facility scarcity. Grey = data-poor (not enough evidence to judge). Click a state to inspect.</p>
+            {facilities.length > 0 && (
+              <div className="legend__fac">
+                <span className="legend__fac-title">Facilities ({facilities.length})</span>
+                <div className="legend__fac-keys">
+                  {[["strong", "strong"], ["partial", "partial"], ["weak", "weak"], ["none", "no claim"]].map(([t, label]) => (
+                    <span key={t} className="legend__fac-key"><span className="legend__dot" style={{ background: trustColor(t) }} />{label}</span>
+                  ))}
+                </div>
+              </div>
+            )}
             {regionMeta && (
               <div className="obs obs--legend">
                 <span className="obs__dot" /> {regionMeta.engine} · {regionMeta.rows} regions · {regionMeta.ms}ms · <code>{regionMeta.source}</code>
@@ -364,8 +384,10 @@ export default function MedDesertPlanner() {
                   <p className="note">No facility in {sel.state} carries any {capability.toUpperCase()} claim — the gap here is an absence of evidence, not a verified service.</p>
                 )}
                 <ul className="evid">
-                  {facilities.map((f, i) => (
-                    <li key={`${f.name}-${i}`} className="fac">
+                  {facilities.map((f, i) => {
+                    const hl = highlightFac === f.name;
+                    return (
+                    <li key={`${f.name}-${i}`} className={`fac${hl ? " fac--hl" : ""}`} ref={hl ? hlRef : null}>
                       <div className="fac__top">
                         <span className="fac__name">{f.name || "Unnamed facility"}</span>
                         <span className={`trust ${trustClass(f.trust)}`}>{trustLabel(f.trust)}</span>
@@ -401,7 +423,8 @@ export default function MedDesertPlanner() {
                         </button>
                       )}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
                 {facilities.length > 0 && (
                   <p className="note">Every row cites the facility&apos;s own text. Strong = structured code and claim agree; weak = mentioned only in free-text. Verify before acting.</p>
