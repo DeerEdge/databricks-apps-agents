@@ -43,6 +43,10 @@ export default function MedDesertPlanner() {
   const [regionMeta, setRegionMeta] = useState<QueryMeta | null>(null);
   const [facMeta, setFacMeta] = useState<QueryMeta | null>(null);
   const [showMath, setShowMath] = useState(false);
+  const [overrides, setOverrides] = useState<Record<string, { id: string; overrideTrust: string; note: string }>>({});
+  const [editKey, setEditKey] = useState<string | null>(null);
+  const [ovTrust, setOvTrust] = useState("weak");
+  const [ovNote, setOvNote] = useState("");
 
   const loadScenarios = () =>
     fetch("/api/scenarios")
@@ -75,8 +79,49 @@ export default function MedDesertPlanner() {
     return () => ctrl.abort();
   }, [selected, capability]);
 
+  // Load any planner trust overrides for the selected scope.
+  useEffect(() => {
+    setEditKey(null);
+    if (!selected) { setOverrides({}); return; }
+    const ctrl = new AbortController();
+    fetch(`/api/overrides?capability=${capability}&state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) return;
+        const m: Record<string, { id: string; overrideTrust: string; note: string }> = {};
+        j.overrides.forEach((o: { facilityName: string; id: string; overrideTrust: string; note: string }) => {
+          m[o.facilityName] = { id: o.id, overrideTrust: o.overrideTrust, note: o.note };
+        });
+        setOverrides(m);
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [selected, capability]);
+
   const realGaps = regions.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore);
   const sel = regions.find((r) => r.state === selected) ?? null;
+
+  async function applyOverride(name: string) {
+    if (!sel) return;
+    const res = await fetch("/api/overrides", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ facilityName: name, capability, state: sel.state, overrideTrust: ovTrust, note: ovNote }),
+    });
+    const j = await res.json();
+    if (j.ok) {
+      setOverrides((p) => ({ ...p, [name]: { id: j.override.id, overrideTrust: j.override.overrideTrust, note: j.override.note } }));
+      setEditKey(null);
+      setOvNote("");
+    }
+  }
+
+  async function clearOverride(name: string) {
+    const o = overrides[name];
+    if (!o) return;
+    await fetch(`/api/overrides?id=${o.id}`, { method: "DELETE" }).catch(() => {});
+    setOverrides((p) => { const n = { ...p }; delete n[name]; return n; });
+  }
 
   async function saveScenario() {
     if (!sel) return;
@@ -248,6 +293,29 @@ export default function MedDesertPlanner() {
                         {f.claim && <span className="src-tag">facility claim</span>}
                         {!f.structured && !f.claim && <span className="src-tag src-tag--soft">description only</span>}
                       </div>
+                      {overrides[f.name] ? (
+                        <div className="ov ov--set">
+                          <span className={`trust ${trustClass(overrides[f.name].overrideTrust)}`}>Planner: {trustLabel(overrides[f.name].overrideTrust)}</span>
+                          {overrides[f.name].note && <span className="ov__note">{overrides[f.name].note}</span>}
+                          <button className="ov__link" onClick={() => clearOverride(f.name)}>undo</button>
+                        </div>
+                      ) : editKey === f.name ? (
+                        <div className="ov ov--edit">
+                          <select className="ov__sel" value={ovTrust} onChange={(e) => setOvTrust(e.target.value)}>
+                            <option value="strong">Strong</option>
+                            <option value="partial">Partial</option>
+                            <option value="weak">Weak</option>
+                            <option value="none">No claim</option>
+                          </select>
+                          <input className="ov__input" placeholder="reason (optional)" value={ovNote} onChange={(e) => setOvNote(e.target.value)} maxLength={1000} />
+                          <button className="ov__link ov__link--save" onClick={() => applyOverride(f.name)}>Save</button>
+                          <button className="ov__link" onClick={() => setEditKey(null)}>✕</button>
+                        </div>
+                      ) : (
+                        <button className="ov__open" onClick={() => { setEditKey(f.name); setOvTrust(f.trust === "none" ? "weak" : f.trust); setOvNote(""); }}>
+                          Override trust ▾
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -8,6 +8,7 @@
 
 import { Pool } from "pg";
 import type { CleanScenario } from "./scenario";
+import type { CleanOverride } from "./override";
 
 const DBX_HOST = process.env.DATABRICKS_HOST;
 const DBX_TOKEN = process.env.DATABRICKS_TOKEN;
@@ -17,6 +18,11 @@ const PG_USER = process.env.LAKEBASE_USER;
 const PG_DATABASE = process.env.LAKEBASE_DATABASE ?? "databricks_postgres";
 
 export interface SavedScenario extends CleanScenario {
+  id: string;
+  createdAt: string;
+}
+
+export interface SavedOverride extends CleanOverride {
   id: string;
   createdAt: string;
 }
@@ -82,6 +88,15 @@ function ensureSchema(): Promise<void> {
          n_facilities integer NOT NULL DEFAULT 0,
          note        text NOT NULL DEFAULT '',
          evidence    jsonb NOT NULL DEFAULT '[]'::jsonb
+       );
+       CREATE TABLE IF NOT EXISTS facility_override (
+         id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+         created_at    timestamptz NOT NULL DEFAULT now(),
+         facility_name text NOT NULL,
+         capability    text NOT NULL,
+         state         text NOT NULL,
+         override_trust text NOT NULL,
+         note          text NOT NULL DEFAULT ''
        )`
     )
     .then(() => undefined)
@@ -119,7 +134,49 @@ export async function deleteScenario(id: string): Promise<boolean> {
   return (rowCount ?? 0) > 0;
 }
 
+export async function saveOverride(o: CleanOverride): Promise<SavedOverride> {
+  await ensureSchema();
+  const { rows } = await getPool().query(
+    `INSERT INTO facility_override (facility_name, capability, state, override_trust, note)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, created_at, facility_name, capability, state, override_trust, note`,
+    [o.facilityName, o.capability, o.state, o.overrideTrust, o.note]
+  );
+  return toOverride(rows[0]);
+}
+
+/** Latest override per facility for a capability×state scope. */
+export async function listOverrides(capability: string, state: string): Promise<SavedOverride[]> {
+  await ensureSchema();
+  const { rows } = await getPool().query(
+    `SELECT DISTINCT ON (facility_name) id, created_at, facility_name, capability, state, override_trust, note
+     FROM facility_override
+     WHERE capability = $1 AND upper(trim(state)) = upper(trim($2))
+     ORDER BY facility_name, created_at DESC`,
+    [capability, state]
+  );
+  return rows.map(toOverride);
+}
+
+export async function deleteOverride(id: string): Promise<boolean> {
+  await ensureSchema();
+  const { rowCount } = await getPool().query(`DELETE FROM facility_override WHERE id = $1`, [id]);
+  return (rowCount ?? 0) > 0;
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
+function toOverride(r: any): SavedOverride {
+  return {
+    id: String(r.id),
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    facilityName: r.facility_name,
+    capability: r.capability,
+    state: r.state,
+    overrideTrust: r.override_trust,
+    note: r.note ?? "",
+  };
+}
+
 function toScenario(r: any): SavedScenario {
   return {
     id: String(r.id),

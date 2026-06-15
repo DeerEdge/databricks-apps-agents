@@ -1158,3 +1158,21 @@ select.input {
 .agent__cite { padding: 8px 10px; border: 1px solid var(--hair); border-radius: 7px; background: var(--paper-raised); }
 .agent__cite-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .agent__cite-name { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+
+/* ── planner trust overrides (human-in-the-loop) ─────── */
+.ov { margin-top: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.ov__open {
+  background: none; border: 1px dashed var(--hair-strong); border-radius: 6px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; color: var(--ink-3); padding: 3px 8px;
+}
+.ov__open:hover { color: var(--accent); border-color: var(--accent); }
+.ov--set { padding: 7px 9px; border-radius: 6px; background: #eef4fb; border: 1px solid #cfe0f2; }
+.ov__note { font-size: 11.5px; color: var(--ink-2); font-style: italic; }
+.ov__sel, .ov__input {
+  font-family: var(--font-sans); font-size: 12px; padding: 4px 7px;
+  border: 1px solid var(--hair-strong); border-radius: 5px; background: var(--paper); color: var(--ink);
+}
+.ov__input { flex: 1; min-width: 90px; }
+.ov__link { background: none; border: none; cursor: pointer; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); padding: 2px 4px; }
+.ov__link:hover { color: var(--ink); }
+.ov__link--save { color: var(--accent); font-weight: 600; }

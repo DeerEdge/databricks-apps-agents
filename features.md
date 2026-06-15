@@ -66,6 +66,11 @@ drills into facility records and **persists planning scenarios**.
       `0.0.0.0:$PORT` (Databricks injects `PORT`) — verified locally (PORT=8123 → 200). README
       deploy steps + secret handling documented. Remaining: run `databricks apps deploy` on the
       workspace (CLI step) + non-technical polish.
+- [x] **MD8 — human-in-the-loop trust overrides.** A planner can correct the AI's trust verdict
+      on any facility×capability with a note, persisted to Lakebase (`facility_override`). Overrides
+      hydrate on revisit and show alongside the AI assessment (both visible — honest). `override.ts`
+      validation (pure, 5 tests); `/api/overrides` GET/POST/DELETE. Browser-verified: hydrate,
+      create, undo; 400 on invalid trust. Satisfies the prompt's "persist overrides / review decisions".
 - [ ] **MD2b — district granularity.** Map facilities to district via PIN /
       point-in-polygon so coverage isn't blurred by the messy state field.
 
