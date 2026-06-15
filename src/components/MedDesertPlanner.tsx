@@ -399,6 +399,29 @@ export default function MedDesertPlanner() {
             </div>
           </section>
 
+          {!sel && (
+            <section className="panel guide">
+              <div className="panel__head">
+                <div className="panel__eyebrow">How to use this</div>
+                <h2 className="panel__title">Find a real care gap</h2>
+              </div>
+              <div className="panel__body">
+                <ol className="guide__steps">
+                  <li><b>Pick a capability</b> above (ICU, maternity, emergency, oncology, trauma, NICU).</li>
+                  <li><b>Choose a place</b> — click a state on the map, a ranked gap, or enter a PIN code.</li>
+                  <li><b>Inspect the evidence</b> — every score cites the facility&apos;s own text, with a trust signal.</li>
+                  <li><b>Save a scenario</b> — persist a shortlist + note, or export a cited brief.</li>
+                </ol>
+                <div className="guide__keys">
+                  {[["strong", "structured + claim agree"], ["partial", "one source"], ["weak", "free-text only"], ["none", "no claim"]].map(([t, d]) => (
+                    <div key={t} className="guide__key"><span className={`trust ${trustClass(t)}`}>{trustLabel(t)}</span><span className="guide__key-d">{d}</span></div>
+                  ))}
+                </div>
+                <p className="note">Gap = NFHS-5 demand-side need × trust-weighted facility scarcity — a transparent formula, not a black-box model. Regions without enough evidence are flagged <strong>data-poor</strong>, never assumed to have &ldquo;no gap.&rdquo; Sources: Virtue Foundation facilities · NFHS-5 district indicators · India Post PIN directory, via Databricks.</p>
+              </div>
+            </section>
+          )}
+
           {sel && (
             <section className="panel rise">
               <div className="panel__head">

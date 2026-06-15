@@ -147,6 +147,13 @@ drills into facility records and **persists planning scenarios**.
       capabilities` (one query) + `orderCapabilityProfile` pure (2 tests). Verified live: Bihar →
       oncology 0.19 top, click Maternity → tab switches. 72 tests, build clean.
 
+- [x] **MD20 — empty-state onboarding.** Before any region is selected, the rail shows a guide
+      card: the 4-step workflow (pick capability → choose place → inspect cited evidence → save),
+      a trust-signal legend (strong/partial/weak/none with what each means), and the honesty note
+      (transparent need×scarcity formula, data-poor never assumed "no gap", data sources). Doubles
+      as judge-facing methodology; clears once a state is selected. Verified live (shows → select →
+      hides). 72 tests, build clean.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts
