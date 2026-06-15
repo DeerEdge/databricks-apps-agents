@@ -51,6 +51,11 @@ drills into facility records and **persists planning scenarios**.
       (pure, 9 tests). UI: save-with-note in the selected panel + persisted scenarios list with
       delete + click-to-reopen. Verified live: POST→GET round-trip, persistence across reload,
       delete, 400 on bad capability, injection string stored literally (parameterized).
+- [x] **MD5b — transparency + observability.** `reasoning.ts` `explainGap` (pure, mirrors the
+      real `region_gap` formula) renders a numbered chain-of-thought (need → supply → scarcity →
+      gap) + a plain-language verdict (real-gap vs data-poor, with the exact reasons). APIs return
+      `meta` (rows, latency, source table, engine); UI shows live observability strips on the map
+      and evidence panel. 5 reasoning tests. Browser-verified.
 - [ ] **MD6 — agent.** NL "where are ICU gaps in Bihar?" grounded in the evidence/region tables.
 - [ ] **MD7 — deploy as a Databricks App** (`app.yaml`) on Free Edition; non-technical polish.
 - [ ] **MD2b — district granularity.** Map facilities to district via PIN /

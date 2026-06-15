@@ -15,6 +15,7 @@ export async function GET(req: Request) {
     const state = (url.searchParams.get("state") ?? "").trim();
     if (!state) return NextResponse.json({ ok: false, error: "state required" }, { status: 400 });
 
+    const t0 = Date.now();
     const { rows } = await runSql(
       `SELECT name, city, trust, citation, structured, claim, latitude, longitude
        FROM workspace.meddesert.facility_capability
@@ -38,7 +39,14 @@ export async function GET(req: Request) {
       claim: r.claim === true || r.claim === "true",
     }));
 
-    return NextResponse.json({ ok: true, capability, state, count: facilities.length, facilities });
+    return NextResponse.json({
+      ok: true,
+      capability,
+      state,
+      count: facilities.length,
+      facilities,
+      meta: { ms: Date.now() - t0, rows: facilities.length, source: "workspace.meddesert.facility_capability", engine: "Databricks SQL" },
+    });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "unknown error" },
