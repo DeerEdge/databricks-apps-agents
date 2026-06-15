@@ -70,6 +70,23 @@ npm test        # vitest unit tests (pure logic: normalizeState, gapColor, trust
 npm run build   # production build
 ```
 
+## Deploy as a Databricks App (Free Edition)
+
+The repo is Databricks-Apps-ready: `app.yaml` runs `npm run start`, and `next start` binds
+`0.0.0.0:$PORT` (Databricks injects `PORT`) — verified locally.
+
+```bash
+databricks apps create medical-desert-planner          # once
+databricks sync . /Workspace/Users/<you>/medical-desert-planner
+databricks apps deploy medical-desert-planner \
+  --source-code-path /Workspace/Users/<you>/medical-desert-planner
+```
+
+Set non-secret config (`DATABRICKS_HOST`, `DATABRICKS_WAREHOUSE_ID`, `LAKEBASE_*`) in `app.yaml`
+or the app's environment; provide `DATABRICKS_TOKEN` as a **Databricks secret** (never inline).
+The app's service principal needs read on the dataset / `workspace.meddesert` and access to the
+Lakebase instance.
+
 ## Repo safety
 
 No secrets in git: `.env*.local` is gitignored; Databricks tokens are read server-side only and

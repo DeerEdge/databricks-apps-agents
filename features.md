@@ -62,7 +62,10 @@ drills into facility records and **persists planning scenarios**.
       `facility_capability` and composes a cited answer + reasoning steps. `AgentAsk` UI streams
       the steps (chain-of-thought), shows the answer + trust-badged citations, and drives the app
       (sets capability tab + selects the state). 10 agent tests. Browser-verified across 4 intents.
-- [ ] **MD7 — deploy as a Databricks App** (`app.yaml`) on Free Edition; non-technical polish.
+- [x] **MD7 — Databricks App readiness.** `app.yaml` (`npm run start`); `next start` binds
+      `0.0.0.0:$PORT` (Databricks injects `PORT`) — verified locally (PORT=8123 → 200). README
+      deploy steps + secret handling documented. Remaining: run `databricks apps deploy` on the
+      workspace (CLI step) + non-technical polish.
 - [ ] **MD2b — district granularity.** Map facilities to district via PIN /
       point-in-polygon so coverage isn't blurred by the messy state field.
 
