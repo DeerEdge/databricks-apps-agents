@@ -39,6 +39,18 @@ export function trustColor(trust: string): string {
   return ({ strong: "#2f9e57", partial: "#e0a32e", weak: "#cf6b52", none: "#9aa3ad" } as Record<string, string>)[trust] ?? "#cf6b52";
 }
 
+/** Count facilities by trust signal (for the evidence filter + mix bar). Pure. */
+export function countByTrust(items: { trust: string }[]): { strong: number; partial: number; weak: number; total: number } {
+  const c = { strong: 0, partial: 0, weak: 0, total: 0 };
+  for (const it of items) {
+    if (it.trust === "strong" || it.trust === "partial" || it.trust === "weak") {
+      c[it.trust]++;
+      c.total++;
+    }
+  }
+  return c;
+}
+
 export interface CapabilityGap { capability: string; gapScore: number; dataPoor: boolean; nFacilities: number; strong: number }
 
 /** Order a state's per-capability gaps for display: rankable first (worst gap → best),

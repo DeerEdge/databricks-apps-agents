@@ -154,6 +154,14 @@ drills into facility records and **persists planning scenarios**.
       as judge-facing methodology; clears once a state is selected. Verified live (shows → select →
       hides). 72 tests, build clean.
 
+- [x] **MD21 — evidence trust filter.** The facility drill-in now has All / Strong / Partial /
+      Weak filter chips (with live counts; empty levels disabled), so a planner can focus on only
+      verified facilities. `countByTrust` pure (2 tests). Verified live: Bihar ICU → All 60 /
+      Strong 39 / Partial 21, filtering to Strong shows only strong-evidence rows. 74 tests, build
+      clean. Self-critical: counts reflect the loaded top-60 (ordered strong→partial→weak), so
+      "Weak 0" here means weak rows fell outside the cap, not that none exist — a known LIMIT
+      artifact; a per-trust count from the aggregate would be more complete.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts

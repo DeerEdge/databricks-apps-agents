@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeState, gapColor, trustLabel, trustClass, trustColor, orderCapabilityProfile, CAPABILITIES } from "./meddesert";
+import { normalizeState, gapColor, trustLabel, trustClass, trustColor, orderCapabilityProfile, countByTrust, CAPABILITIES } from "./meddesert";
 
 describe("normalizeState", () => {
   it("strips diacritics + uppercases so geoBoundaries matches NFHS", () => {
@@ -42,6 +42,16 @@ describe("trustColor", () => {
     expect(trustColor("strong")).toBe("#2f9e57");
     expect(trustColor("none")).toBe("#9aa3ad");
     expect(trustColor("???")).toBe(trustColor("weak"));
+  });
+});
+
+describe("countByTrust", () => {
+  it("tallies strong/partial/weak and total, ignoring none/unknown", () => {
+    const c = countByTrust([{ trust: "strong" }, { trust: "strong" }, { trust: "partial" }, { trust: "weak" }, { trust: "none" }, { trust: "x" }]);
+    expect(c).toEqual({ strong: 2, partial: 1, weak: 1, total: 4 });
+  });
+  it("handles empty", () => {
+    expect(countByTrust([])).toEqual({ strong: 0, partial: 0, weak: 0, total: 0 });
   });
 });
 
