@@ -7,7 +7,17 @@ import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass } fr
 import { explainGap } from "@/lib/reasoning";
 
 interface QueryMeta { ms: number; rows: number; source: string; engine: string }
-interface District { district: string; institutionalBirth: number | null; insurancePct: number | null; needIndex: number }
+interface District {
+  district: string;
+  nFacilities: number;
+  strong: number;
+  supply: number;
+  institutionalBirth: number | null;
+  needIndex: number | null;
+  scarcity: number;
+  gapScore: number;
+  dataPoor: boolean;
+}
 
 interface Facility {
   name: string;
@@ -101,17 +111,17 @@ export default function MedDesertPlanner() {
     return () => ctrl.abort();
   }, [selected, capability]);
 
-  // District-level NFHS-5 demand (capability-agnostic) for the selected state.
+  // District-level gap (supply via PIN × NFHS-5 demand) for the selected state × capability.
   useEffect(() => {
     setShowDistricts(false);
     if (!selected) { setDistricts([]); return; }
     const ctrl = new AbortController();
-    fetch(`/api/districts?state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+    fetch(`/api/districts?capability=${capability}&state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((j) => setDistricts(j.ok ? j.districts : []))
       .catch(() => {});
     return () => ctrl.abort();
-  }, [selected]);
+  }, [selected, capability]);
 
   const realGaps = regions.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore);
   const sel = regions.find((r) => r.state === selected) ?? null;
@@ -300,27 +310,32 @@ export default function MedDesertPlanner() {
                   );
                 })()}
 
-                {districts.length > 0 && (
-                  <div className="dist">
-                    <button className="reveal" onClick={() => setShowDistricts((v) => !v)}>
-                      {showDistricts ? "Hide district need ▲" : `NFHS-5 demand-side need by district (${districts.length}) ▼`}
-                    </button>
-                    {showDistricts && (
-                      <>
-                        <ul className="dist__list">
-                          {districts.slice(0, 12).map((d) => (
-                            <li key={d.district} className="dist__row">
-                              <span className="dist__name">{d.district}</span>
-                              <span className="dist__bar"><span className="dist__fill" style={{ width: `${Math.round((d.needIndex / (districts[0].needIndex || 1)) * 100)}%`, background: gapColor(d.needIndex) }} /></span>
-                              <span className="dist__val">{d.institutionalBirth ?? "—"}%</span>
-                            </li>
-                          ))}
-                        </ul>
-                        <p className="note">Higher = lower institutional-birth %, i.e. greater demand-side need. District resolution comes from NFHS-5; facility supply is still state-level (PIN→district mapping is next).</p>
-                      </>
-                    )}
-                  </div>
-                )}
+                {districts.length > 0 && (() => {
+                  const realDist = districts.filter((d) => !d.dataPoor);
+                  const top = realDist.slice(0, 12);
+                  const maxGap = top[0]?.gapScore || 1;
+                  return (
+                    <div className="dist">
+                      <button className="reveal" onClick={() => setShowDistricts((v) => !v)}>
+                        {showDistricts ? "Hide district gaps ▲" : `District gaps — ${capability.toUpperCase()} (${realDist.length} real · ${districts.length - realDist.length} data-poor) ▼`}
+                      </button>
+                      {showDistricts && (
+                        <>
+                          <ul className="dist__list">
+                            {top.map((d) => (
+                              <li key={d.district} className="dist__row">
+                                <span className="dist__name">{d.district}</span>
+                                <span className="dist__bar"><span className="dist__fill" style={{ width: `${Math.round((d.gapScore / maxGap) * 100)}%`, background: gapColor(d.gapScore) }} /></span>
+                                <span className="dist__val">{d.strong}s · {d.nFacilities}f</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="note">Facility supply mapped to district via PIN postcode × NFHS-5 district need. Gap = need × scarcity within {sel.state}. {districts.length - realDist.length} districts are data-poor (no NFHS match or &lt;5 facilities) and excluded from the ranking.</p>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="evid__head">
                   <span className="evid__title">Facilities with {capability.toUpperCase()} evidence</span>

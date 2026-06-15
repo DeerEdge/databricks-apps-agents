@@ -71,11 +71,12 @@ drills into facility records and **persists planning scenarios**.
       hydrate on revisit and show alongside the AI assessment (both visible — honest). `override.ts`
       validation (pure, 5 tests); `/api/overrides` GET/POST/DELETE. Browser-verified: hydrate,
       create, undo; 400 on invalid trust. Satisfies the prompt's "persist overrides / review decisions".
-- [~] **MD2b — district granularity (demand side).** `district_need` view (NFHS-5 per district)
-      + `/api/districts?state=`; selected-state panel shows a ranked district need breakdown
-      (institutional-birth %, need bar). Verified: Bihar → 38 districts, Kishanganj worst (54.6%).
-      Demand side is now district-level; facility SUPPLY → district via PIN mapping is the remaining
-      half (next).
+- [x] **MD2b — district granularity (full).** Facility SUPPLY mapped to district via PIN postcode
+      (`india_post_pincode_directory`: 9,563/10k join) × NFHS-5 district DEMAND → `district_coverage`
+      + `district_gap` views (3,330 rows; PIN gives clean state+district, sidestepping the messy
+      facility state field). `/api/districts?capability=&state=` returns district real-gap-vs-data-poor;
+      drill-in shows gap-ranked districts with supply (Ns·Nf) + need. Verified: Bihar ICU → 8 real /
+      23 data-poor, Purnia worst (5 facilities, 0 strong, 68.9% inst-birth, gap 0.31).
 
 - [x] **MD9 — demo polish.** Live national KPI overlay on the map (real gaps / data-poor /
       facilities / strong-evidence counts) that updates per capability — derived from loaded data,
