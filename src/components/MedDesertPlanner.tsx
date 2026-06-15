@@ -5,6 +5,7 @@ import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
 import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass } from "@/lib/meddesert";
 import { explainGap } from "@/lib/reasoning";
+import { scenarioBrief } from "@/lib/brief";
 
 interface QueryMeta { ms: number; rows: number; source: string; engine: string }
 interface District {
@@ -62,6 +63,8 @@ export default function MedDesertPlanner() {
   const [ovNote, setOvNote] = useState("");
   const [districts, setDistricts] = useState<District[]>([]);
   const [showDistricts, setShowDistricts] = useState(false);
+  const [briefId, setBriefId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadScenarios = () =>
     fetch("/api/scenarios")
@@ -156,6 +159,14 @@ export default function MedDesertPlanner() {
     if (!o) return;
     await fetch(`/api/overrides?id=${o.id}`, { method: "DELETE" }).catch(() => {});
     setOverrides((p) => { const n = { ...p }; delete n[name]; return n; });
+  }
+
+  async function copyBrief(s: Scenario) {
+    try {
+      await navigator.clipboard.writeText(scenarioBrief(s));
+      setCopiedId(s.id);
+      setTimeout(() => setCopiedId((c) => (c === s.id ? null : c)), 1800);
+    } catch { /* clipboard unavailable — the brief is still visible to copy manually */ }
   }
 
   async function saveScenario() {
@@ -425,12 +436,24 @@ export default function MedDesertPlanner() {
                         <button className="scen__title" onClick={() => { setCapability(s.capability as CapabilityKey); setSelected(s.state); }}>
                           {s.state} · {s.capability.toUpperCase()}
                         </button>
-                        <button className="scen__del" onClick={() => removeScenario(s.id)} aria-label="Delete scenario">✕</button>
+                        <div className="scen__actions">
+                          <button className="ov__link" onClick={() => setBriefId((b) => (b === s.id ? null : s.id))}>{briefId === s.id ? "hide" : "brief"}</button>
+                          <button className="scen__del" onClick={() => removeScenario(s.id)} aria-label="Delete scenario">✕</button>
+                        </div>
                       </div>
                       <div className="scen__meta">
                         {s.dataPoor ? "data-poor" : `gap ${s.gapScore?.toFixed(2) ?? "—"}`} · {s.nFacilities} facilities · {s.evidence.length} cited
                       </div>
                       {s.note && <p className="scen__note">{s.note}</p>}
+                      {briefId === s.id && (
+                        <div className="brief">
+                          <div className="brief__bar">
+                            <span className="brief__label">Shareable brief (Markdown)</span>
+                            <button className="ov__link ov__link--save" onClick={() => copyBrief(s)}>{copiedId === s.id ? "copied ✓" : "copy"}</button>
+                          </div>
+                          <pre className="brief__pre">{scenarioBrief(s)}</pre>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

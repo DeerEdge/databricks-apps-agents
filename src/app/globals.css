@@ -1201,3 +1201,14 @@ select.input {
 
 /* ── facility point popup citation ───────────────────── */
 .pop__cite { margin-top: 5px; max-width: 230px; font-size: 11px; line-height: 1.4; color: var(--ink-2); font-style: italic; }
+
+/* ── shareable scenario brief (export) ───────────────── */
+.scen__actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.brief { margin-top: 9px; border: 1px solid var(--hair-strong); border-radius: 8px; overflow: hidden; }
+.brief__bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 9px; background: var(--paper-sunk); border-bottom: 1px solid var(--hair); }
+.brief__label { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.brief__pre {
+  margin: 0; padding: 10px 11px; max-height: 230px; overflow: auto;
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: var(--ink-2);
+  white-space: pre-wrap; word-break: break-word; background: var(--paper);
+}
