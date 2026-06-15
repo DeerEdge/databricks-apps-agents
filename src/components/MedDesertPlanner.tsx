@@ -7,6 +7,7 @@ import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass } fr
 import { explainGap } from "@/lib/reasoning";
 
 interface QueryMeta { ms: number; rows: number; source: string; engine: string }
+interface District { district: string; institutionalBirth: number | null; insurancePct: number | null; needIndex: number }
 
 interface Facility {
   name: string;
@@ -47,6 +48,8 @@ export default function MedDesertPlanner() {
   const [editKey, setEditKey] = useState<string | null>(null);
   const [ovTrust, setOvTrust] = useState("weak");
   const [ovNote, setOvNote] = useState("");
+  const [districts, setDistricts] = useState<District[]>([]);
+  const [showDistricts, setShowDistricts] = useState(false);
 
   const loadScenarios = () =>
     fetch("/api/scenarios")
@@ -97,6 +100,18 @@ export default function MedDesertPlanner() {
       .catch(() => {});
     return () => ctrl.abort();
   }, [selected, capability]);
+
+  // District-level NFHS-5 demand (capability-agnostic) for the selected state.
+  useEffect(() => {
+    setShowDistricts(false);
+    if (!selected) { setDistricts([]); return; }
+    const ctrl = new AbortController();
+    fetch(`/api/districts?state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((j) => setDistricts(j.ok ? j.districts : []))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [selected]);
 
   const realGaps = regions.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore);
   const sel = regions.find((r) => r.state === selected) ?? null;
@@ -265,6 +280,28 @@ export default function MedDesertPlanner() {
                     </div>
                   );
                 })()}
+
+                {districts.length > 0 && (
+                  <div className="dist">
+                    <button className="reveal" onClick={() => setShowDistricts((v) => !v)}>
+                      {showDistricts ? "Hide district need ▲" : `NFHS-5 demand-side need by district (${districts.length}) ▼`}
+                    </button>
+                    {showDistricts && (
+                      <>
+                        <ul className="dist__list">
+                          {districts.slice(0, 12).map((d) => (
+                            <li key={d.district} className="dist__row">
+                              <span className="dist__name">{d.district}</span>
+                              <span className="dist__bar"><span className="dist__fill" style={{ width: `${Math.round((d.needIndex / (districts[0].needIndex || 1)) * 100)}%`, background: gapColor(d.needIndex) }} /></span>
+                              <span className="dist__val">{d.institutionalBirth ?? "—"}%</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="note">Higher = lower institutional-birth %, i.e. greater demand-side need. District resolution comes from NFHS-5; facility supply is still state-level (PIN→district mapping is next).</p>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 <div className="evid__head">
                   <span className="evid__title">Facilities with {capability.toUpperCase()} evidence</span>
