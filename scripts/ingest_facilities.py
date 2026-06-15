@@ -173,6 +173,46 @@ def main():
         WHERE district_name IS NOT NULL AND trim(district_name) <> ''
     """)
 
+    pin = SRC.replace("facilities", "india_post_pincode_directory")
+    print("→ district_coverage (facility supply → district via PIN postcode)", flush=True)
+    run_sql(f"""
+        CREATE OR REPLACE VIEW workspace.meddesert.district_coverage AS
+        WITH pin AS (SELECT cast(pincode AS STRING) pincode, any_value(district) district, any_value(statename) statename
+                     FROM {pin} GROUP BY cast(pincode AS STRING)),
+             fc6 AS (SELECT capability, trust, regexp_extract(postcode, '([0-9]{{6}})', 1) AS pin
+                     FROM workspace.meddesert.facility_capability
+                     WHERE regexp_extract(postcode, '([0-9]{{6}})', 1) <> ''),
+             fd AS (SELECT f.capability, f.trust, upper(trim(p.district)) AS district_key, p.district AS district,
+                           upper(trim(p.statename)) AS state_key
+                    FROM fc6 f JOIN pin p ON f.pin = p.pincode)
+        SELECT capability, state_key, district_key, any_value(district) AS district,
+               count(*) AS n_facilities,
+               sum(CASE WHEN trust='strong' THEN 1 ELSE 0 END) AS strong,
+               sum(CASE WHEN trust='partial' THEN 1 ELSE 0 END) AS partial,
+               sum(CASE WHEN trust='weak' THEN 1 ELSE 0 END) AS weak,
+               round(sum(CASE trust WHEN 'strong' THEN 1.0 WHEN 'partial' THEN 0.5 WHEN 'weak' THEN 0.2 ELSE 0 END), 1) AS supply
+        FROM fd GROUP BY capability, state_key, district_key
+    """)
+
+    print("→ district_gap (district need × scarcity, data-poor flag)", flush=True)
+    run_sql(f"""
+        CREATE OR REPLACE VIEW workspace.meddesert.district_gap AS
+        WITH cov AS (SELECT * FROM workspace.meddesert.district_coverage),
+             maxs AS (SELECT capability, state_key, max(supply) max_supply FROM cov GROUP BY capability, state_key),
+             need AS (SELECT upper(trim(state_ut)) state_key, upper(trim(district_name)) district_key,
+                             round(try_cast(regexp_replace(institutional_birth_5y_pct, '[()*]', '') AS DOUBLE), 1) institutional_birth,
+                             round(coalesce((100 - try_cast(regexp_replace(institutional_birth_5y_pct, '[()*]', '') AS DOUBLE)) / 100.0, 0.5), 3) need_index
+                      FROM {nfhs})
+        SELECT cov.capability, cov.state_key, cov.district, cov.district_key,
+               cov.n_facilities, cov.strong, cov.partial, cov.weak, cov.supply,
+               n.institutional_birth, n.need_index,
+               round(1 - cov.supply / nullif(m.max_supply, 0), 3) AS scarcity,
+               round(coalesce(n.need_index, 0.5) * (1 - cov.supply / nullif(m.max_supply, 0)), 3) AS gap_score,
+               ((cov.strong + cov.partial) = 0 OR cov.n_facilities < 5 OR n.need_index IS NULL) AS data_poor
+        FROM cov JOIN maxs m ON cov.capability = m.capability AND cov.state_key = m.state_key
+        LEFT JOIN need n ON cov.state_key = n.state_key AND cov.district_key = n.district_key
+    """)
+
     print("→ verify trust distribution", flush=True)
     rows = run_sql("""
         SELECT capability, trust, count(*) n
