@@ -115,6 +115,16 @@ drills into facility records and **persists planning scenarios**.
       top-12). `pin.ts` `normalizePin` pure (5 tests). Verified live: 812001 → Bihar / BHAGALPUR
       highlighted. Completes the state/district/PIN geography trio (63 tests, build clean).
 
+- [x] **MD16 — data-poor explorer.** Segmented toggle in the rankings panel: "Real gaps (N)" ↔
+      "Data-poor (N)". The data-poor list shows each region with the reason it can't be ranked
+      (no verifiable evidence / too few facilities / no NFHS-5 need data) and frames them as
+      data-collection candidates, not "no gap". `dataPoorReason` pure (1 test). Verified live (real:
+      Meghalaya top; data-poor: Maharashtra/Delhi "no NFHS-5 need data"). Directly serves the core
+      "distinguish REAL gaps from DATA-POOR" requirement. Self-critical: many big states fall in
+      data-poor due to the *state-level* NFHS name-join being incomplete — the district-level
+      `district_gap` matches NFHS far better; consolidating state need onto the cleaner PIN-derived
+      state key is the real fix.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts
