@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
 import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState } from "@/lib/meddesert";
-import { explainGap } from "@/lib/reasoning";
+import { explainGap, dataPoorReason } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
 interface QueryMeta { ms: number; rows: number; source: string; engine: string }
@@ -73,6 +73,7 @@ export default function MedDesertPlanner() {
   const [highlightDistrict, setHighlightDistrict] = useState<string | null>(null);
   const distRowRef = useRef<HTMLLIElement | null>(null);
   const wantDistrictRef = useRef<string | null>(null);
+  const [gapView, setGapView] = useState<"real" | "poor">("real");
 
   // When a facility point on the map is clicked, scroll its evidence card into view.
   useEffect(() => {
@@ -153,6 +154,7 @@ export default function MedDesertPlanner() {
   }, [selected, capability]);
 
   const realGaps = regions.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore);
+  const dataPoorRegions = regions.filter((r) => r.dataPoor).sort((a, b) => b.nFacilities - a.nFacilities);
   const sel = regions.find((r) => r.state === selected) ?? null;
 
   // Live national KPIs for the active capability (derived from the loaded regions — no extra query).
@@ -338,24 +340,50 @@ export default function MedDesertPlanner() {
 
           <section className="panel">
             <div className="panel__head">
-              <div className="panel__eyebrow">Highest-risk gaps</div>
-              <h2 className="panel__title">{capability.toUpperCase()} — real care gaps</h2>
+              <div className="panel__eyebrow">{capability.toUpperCase()} · India</div>
+              <div className="seg">
+                <button className={`seg__btn${gapView === "real" ? " seg__btn--on" : ""}`} onClick={() => setGapView("real")}>
+                  Real gaps <span className="seg__n">{realGaps.length}</span>
+                </button>
+                <button className={`seg__btn${gapView === "poor" ? " seg__btn--on" : ""}`} onClick={() => setGapView("poor")}>
+                  Data-poor <span className="seg__n">{dataPoorRegions.length}</span>
+                </button>
+              </div>
             </div>
             <div className="panel__body">
-              {realGaps.length === 0 && <p className="note">Loading…</p>}
-              <div className="alloc">
-                {realGaps.slice(0, 8).map((r) => (
-                  <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => setSelected(r.state)}>
-                    <div className="alloc__row__top">
-                      <span className="alloc__county">{r.state}</span>
-                      <span className="alloc__amt">{r.gapScore.toFixed(2)}</span>
-                    </div>
-                    <div className="bar"><div className="bar__fill" style={{ width: `${Math.round(r.gapScore / (realGaps[0].gapScore || 1) * 100)}%`, background: gapColor(r.gapScore) }} /></div>
-                    <div className="alloc__action">{r.strong} strong · {r.nFacilities} facilities · NFHS inst-birth {r.institutionalBirth ?? "—"}%</div>
-                  </button>
-                ))}
-              </div>
-              <p className="note">Ranked by gap score among states with enough evidence + NFHS need data. Data-poor regions are shown grey on the map, not ranked.</p>
+              {regions.length === 0 && <p className="note">Loading…</p>}
+              {gapView === "real" ? (
+                <>
+                  <div className="alloc">
+                    {realGaps.slice(0, 8).map((r) => (
+                      <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => setSelected(r.state)}>
+                        <div className="alloc__row__top">
+                          <span className="alloc__county">{r.state}</span>
+                          <span className="alloc__amt">{r.gapScore.toFixed(2)}</span>
+                        </div>
+                        <div className="bar"><div className="bar__fill" style={{ width: `${Math.round(r.gapScore / (realGaps[0].gapScore || 1) * 100)}%`, background: gapColor(r.gapScore) }} /></div>
+                        <div className="alloc__action">{r.strong} strong · {r.nFacilities} facilities · NFHS inst-birth {r.institutionalBirth ?? "—"}%</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="note">Ranked by gap score among states with enough evidence + NFHS need data. Data-poor regions are shown grey on the map, not ranked.</p>
+                </>
+              ) : (
+                <>
+                  <div className="alloc">
+                    {dataPoorRegions.slice(0, 10).map((r) => (
+                      <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => setSelected(r.state)}>
+                        <div className="alloc__row__top">
+                          <span className="alloc__county">{r.state}</span>
+                          <span className="dp-tag">data-poor</span>
+                        </div>
+                        <div className="alloc__action">{dataPoorReason(r)} · {r.nFacilities} facilities</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="note">These regions can&apos;t be confidently ranked — too little verifiable evidence or missing NFHS-5 need data. They are candidates for <strong>data collection</strong>, not conclusions of &ldquo;no gap.&rdquo;</p>
+                </>
+              )}
             </div>
           </section>
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { explainGap, type GapInputs } from "./reasoning";
+import { explainGap, dataPoorReason, type GapInputs } from "./reasoning";
 
 const base: GapInputs = {
   state: "Bihar", nFacilities: 156, strong: 20, partial: 14, weak: 8, supply: 28.6,
@@ -30,6 +30,12 @@ describe("explainGap", () => {
   it("explains data-poor: too few facilities", () => {
     const e = explainGap({ ...base, nFacilities: 4, dataPoor: true }, "Trauma");
     expect(e.verdict.reasons.some((r) => /Only 4 facilities/.test(r))).toBe(true);
+  });
+
+  it("dataPoorReason prioritizes no-evidence, then sparsity, then missing NFHS", () => {
+    expect(dataPoorReason({ strong: 0, partial: 0, nFacilities: 50, institutionalBirth: 70 })).toBe("no verifiable evidence");
+    expect(dataPoorReason({ strong: 1, partial: 0, nFacilities: 4, institutionalBirth: 70 })).toBe("only 4 facilities on record");
+    expect(dataPoorReason({ strong: 3, partial: 2, nFacilities: 40, institutionalBirth: null })).toBe("no NFHS-5 need data");
   });
 
   it("explains data-poor: missing NFHS need data and defaults need", () => {

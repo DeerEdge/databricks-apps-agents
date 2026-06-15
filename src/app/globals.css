@@ -1285,3 +1285,18 @@ select.input {
   border-radius: 6px; box-shadow: 0 0 0 2px var(--accent); padding: 3px 5px; margin: -3px -5px;
   animation: facpulse 0.5s ease;
 }
+
+/* ── real-gaps / data-poor segmented toggle ──────────── */
+.seg { display: flex; gap: 3px; margin-top: 8px; padding: 3px; background: var(--paper-sunk); border-radius: 8px; }
+.seg__btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--ink-2);
+  padding: 6px 8px; border: none; border-radius: 6px; background: none; transition: background 0.15s, color 0.15s;
+}
+.seg__btn--on { background: var(--paper); color: var(--ink); box-shadow: var(--shadow-sm); }
+.seg__n { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); }
+.seg__btn--on .seg__n { color: var(--accent); }
+.dp-tag {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; background: var(--paper-sunk); color: var(--ink-3); border: 1px solid var(--hair);
+}

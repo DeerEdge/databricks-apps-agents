@@ -29,6 +29,15 @@ export interface ReasonStep {
   detail: string;
 }
 
+/** Short reason a region is data-poor (why it can't be ranked as a real gap).
+ *  Mirrors the data_poor flag: no evidence → too few facilities → no NFHS need data. */
+export function dataPoorReason(r: { strong: number; partial: number; nFacilities: number; institutionalBirth: number | null }): string {
+  if (r.strong + r.partial === 0) return "no verifiable evidence";
+  if (r.nFacilities < 10) return `only ${r.nFacilities} facilities on record`;
+  if (r.institutionalBirth == null) return "no NFHS-5 need data";
+  return "insufficient data";
+}
+
 export interface GapExplanation {
   steps: ReasonStep[];
   verdict: { kind: "real-gap" | "data-poor"; headline: string; reasons: string[] };
