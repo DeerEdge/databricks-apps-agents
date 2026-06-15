@@ -109,6 +109,12 @@ drills into facility records and **persists planning scenarios**.
       numbered animated steps, and a tinted grounded-answer card. Cleaner, premium feel. Verified
       live (chip → numbered steps → answer). Build clean, 58 tests pass.
 
+- [x] **MD15 — PIN-code geography.** A PIN search box resolves a 6-digit PIN → district + state
+      via the India Post directory (`/api/pin`), then selects that state, opens the district
+      breakdown, and highlights+scrolls to the matched district (shown even if data-poor / outside
+      top-12). `pin.ts` `normalizePin` pure (5 tests). Verified live: 812001 → Bihar / BHAGALPUR
+      highlighted. Completes the state/district/PIN geography trio (63 tests, build clean).
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts
