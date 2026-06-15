@@ -146,7 +146,13 @@ def main():
     """)
 
     print("→ region_gap (need × scarcity, data-poor flag)", flush=True)
-    run_sql("""
+    # Canonical state key reconciles spelling differences between the facility/PIN state names
+    # and NFHS-5 state_ut (NFHS uses MAHARASTRA, NCT OF DELHI, JAMMU KASHMIR, etc.). Applied to
+    # both sides: strip non-letters, drop AND/THE, then alias the two irreducible spellings.
+    def canon(col):
+        return (f"replace(replace(replace(replace(regexp_replace(upper(trim({col})), '[^A-Z]', ''), "
+                f"'AND', ''), 'THE', ''), 'MAHARASHTRA', 'MAHARASTRA'), 'NCTOFDELHI', 'DELHI')")
+    run_sql(f"""
         CREATE OR REPLACE VIEW workspace.meddesert.region_gap AS
         WITH cov AS (SELECT * FROM workspace.meddesert.region_coverage),
              maxs AS (SELECT capability, max(supply) max_supply FROM cov GROUP BY capability)
@@ -155,11 +161,10 @@ def main():
                round(coalesce((100 - b.institutional_birth) / 100.0, 0.5), 3) AS need_index,
                round(1 - c.supply / nullif(m.max_supply, 0), 3) AS scarcity,
                round(coalesce((100 - b.institutional_birth) / 100.0, 0.5) * (1 - c.supply / nullif(m.max_supply, 0)), 3) AS gap_score,
-               -- data-poor when: no real evidence, too few facilities, OR no NFHS demand-side
-               -- data (which also filters out messy non-state values in the address field).
+               -- data-poor when: no real evidence, too few facilities, OR no NFHS demand-side data.
                ((c.strong + c.partial) = 0 OR c.n_facilities < 10 OR b.institutional_birth IS NULL) AS data_poor
         FROM cov c JOIN maxs m ON c.capability = m.capability
-        LEFT JOIN workspace.meddesert.region_burden b ON c.state_key = b.state_key
+        LEFT JOIN workspace.meddesert.region_burden b ON {canon('c.state_key')} = {canon('b.state_key')}
     """)
 
     print("→ district_need (NFHS-5 demand-side need, district granularity)", flush=True)

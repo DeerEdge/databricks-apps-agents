@@ -11,6 +11,23 @@ planner can drill into facility records and save planning scenarios. Built for t
 > Gap scoring is a **transparent, inspectable formula, not machine learning** — supply and
 > NFHS-5 burden combine via configurable rules (`src/lib/meddesert.ts` + the `region_gap` view).
 
+## Teammate onboarding (start here)
+
+1. `npm install`, then copy `.env.template` → `.env.local` and fill in the Databricks +
+   Lakebase values (host, token, warehouse id; `LAKEBASE_*` for persistence).
+2. `npm run dev` → http://localhost:3000. `npm test` runs the vitest suite; `npm run build`
+   for a production build (both must stay green before pushing).
+3. Gold tables/views live in `workspace.meddesert` — rebuild them with
+   `python3 scripts/ingest_facilities.py` (idempotent `CREATE OR REPLACE`).
+4. **Where things are:** API routes in `src/app/api/*` (`regions`, `facilities`, `districts`,
+   `pin`, `scenarios`, `overrides`, `ask`, `health`); pure logic + tests in `src/lib/*`; UI in
+   `src/components/{MedDesertPlanner,GapMap,AgentAsk}.tsx`.
+5. **What's done vs next:** see `features.md` (roadmap MD1–MD17 + open self-critiques). Open
+   next steps: district polygons on the map, agent → Genie/Mosaic when configured, and running
+   `databricks apps deploy`.
+6. **Rules:** never commit secrets (`.env.local` is gitignored); branch + PR off `main`; every
+   feature ships with tests. See `CLAUDE.md`.
+
 ## Stack
 
 - **Next.js (App Router, TS)** — UI + API routes (the backend). No separate server.
