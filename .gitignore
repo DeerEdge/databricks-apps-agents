@@ -1,0 +1,29 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# env — NEVER commit real keys (see .env.template)
+.env
+.env*.local
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+next-env.d.ts
+*.tsbuildinfo
+
+# dev artifacts (screenshots, playwright)
+.playwright-mcp/
+/*.png
+
+# python + claude artifacts
+__pycache__/
+*.pyc
+.claude/
