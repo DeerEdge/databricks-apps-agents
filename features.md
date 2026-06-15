@@ -98,6 +98,12 @@ drills into facility records and **persists planning scenarios**.
       with trust) + one-click copy. `brief.ts` pure (6 tests). Verified live: brief renders with
       cited evidence and "copied ✓". Makes the persisted plan a deliverable a funder can share.
 
+- [x] **MD13 — map↔evidence link + facility legend.** Clicking a facility point on the map
+      highlights and scrolls to its evidence card (pulse animation); an on-map trust legend
+      (strong/partial/weak/no-claim) appears once a state is selected. Verified live: clicking the
+      "Satyarthi Hospital" point highlighted its card; legend shows all four trust keys. Ties the
+      geographic and evidence views into one coherent, premium interaction.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts

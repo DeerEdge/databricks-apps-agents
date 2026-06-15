@@ -1212,3 +1212,14 @@ select.input {
   font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: var(--ink-2);
   white-space: pre-wrap; word-break: break-word; background: var(--paper);
 }
+
+/* ── map↔evidence link: highlighted facility card ───── */
+.fac--hl { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(30,96,145,0.18); animation: facpulse 0.5s ease; }
+@keyframes facpulse { 0% { box-shadow: 0 0 0 6px rgba(30,96,145,0.28); } 100% { box-shadow: 0 0 0 3px rgba(30,96,145,0.18); } }
+
+/* ── on-map facility trust legend ────────────────────── */
+.legend__fac { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--hair); }
+.legend__fac-title { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+.legend__fac-keys { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 5px; }
+.legend__fac-key { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--ink-2); }
+.legend__dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.8); }
