@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
-import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor } from "@/lib/meddesert";
+import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState } from "@/lib/meddesert";
 import { explainGap } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
@@ -67,6 +67,12 @@ export default function MedDesertPlanner() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [highlightFac, setHighlightFac] = useState<string | null>(null);
   const hlRef = useRef<HTMLLIElement | null>(null);
+  const [pin, setPin] = useState("");
+  const [pinErr, setPinErr] = useState<string | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [highlightDistrict, setHighlightDistrict] = useState<string | null>(null);
+  const distRowRef = useRef<HTMLLIElement | null>(null);
+  const wantDistrictRef = useRef<string | null>(null);
 
   // When a facility point on the map is clicked, scroll its evidence card into view.
   useEffect(() => {
@@ -133,7 +139,15 @@ export default function MedDesertPlanner() {
     const ctrl = new AbortController();
     fetch(`/api/districts?capability=${capability}&state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((j) => setDistricts(j.ok ? j.districts : []))
+      .then((j) => {
+        setDistricts(j.ok ? j.districts : []);
+        // If this selection came from a PIN lookup, open the breakdown + highlight that district.
+        if (wantDistrictRef.current) {
+          setShowDistricts(true);
+          setHighlightDistrict(wantDistrictRef.current);
+          wantDistrictRef.current = null;
+        }
+      })
       .catch(() => {});
     return () => ctrl.abort();
   }, [selected, capability]);
@@ -213,6 +227,44 @@ export default function MedDesertPlanner() {
     await loadScenarios();
   }
 
+  // Resolve a PIN → district + state, then jump the map there and highlight that district.
+  async function resolvePin(e: React.FormEvent) {
+    e.preventDefault();
+    setPinErr(null);
+    setPinBusy(true);
+    try {
+      const res = await fetch(`/api/pin?pin=${encodeURIComponent(pin)}`);
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error ?? "lookup failed");
+      // Match the directory state ("BIHAR") to a region's actual state string ("Bihar").
+      const region = regions.find((r) => normalizeState(r.state) === normalizeState(j.state));
+      if (!region) throw new Error(`No ${capability.toUpperCase()} coverage data for ${j.state}`);
+      wantDistrictRef.current = normalizeState(j.district);
+      if (region.state === selected) {
+        // Already on this state — the load effect won't refire, so open + highlight directly.
+        setShowDistricts(true);
+        setHighlightDistrict(wantDistrictRef.current);
+        wantDistrictRef.current = null;
+      } else {
+        setSelected(region.state);
+      }
+    } catch (e) {
+      setPinErr(e instanceof Error ? e.message : "lookup failed");
+    } finally {
+      setPinBusy(false);
+    }
+  }
+
+  // Scroll to + flash the matched district once the breakdown renders.
+  useEffect(() => {
+    if (!highlightDistrict || !showDistricts) return;
+    const t = setTimeout(() => {
+      distRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+    const clear = setTimeout(() => setHighlightDistrict(null), 2600);
+    return () => { clearTimeout(t); clearTimeout(clear); };
+  }, [highlightDistrict, showDistricts, districts]);
+
   return (
     <div className="app">
       <header className="topbar">
@@ -272,6 +324,13 @@ export default function MedDesertPlanner() {
         </section>
 
         <aside className="rail">
+          <form className="pin" onSubmit={resolvePin}>
+            <input className="pin__input" value={pin} onChange={(e) => { setPin(e.target.value); setPinErr(null); }}
+              placeholder="Jump to a PIN code (e.g. 812001)" inputMode="numeric" maxLength={12} aria-label="Find by PIN code" />
+            <button className="pin__btn" disabled={pinBusy}>{pinBusy ? "…" : "Locate"}</button>
+          </form>
+          {pinErr && <p className="pin__err">{pinErr}</p>}
+
           <AgentAsk onResult={(cap, state) => {
             if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
             setSelected(state);
@@ -346,6 +405,11 @@ export default function MedDesertPlanner() {
                 {districts.length > 0 && (() => {
                   const realDist = districts.filter((d) => !d.dataPoor);
                   const top = realDist.slice(0, 12);
+                  // Ensure a PIN-highlighted district is shown even if outside the top-12 / data-poor.
+                  const pinned = highlightDistrict && !top.some((d) => normalizeState(d.district) === highlightDistrict)
+                    ? districts.find((d) => normalizeState(d.district) === highlightDistrict)
+                    : null;
+                  const shown = pinned ? [...top, pinned] : top;
                   const maxGap = top[0]?.gapScore || 1;
                   return (
                     <div className="dist">
@@ -355,13 +419,16 @@ export default function MedDesertPlanner() {
                       {showDistricts && (
                         <>
                           <ul className="dist__list">
-                            {top.map((d) => (
-                              <li key={d.district} className="dist__row">
-                                <span className="dist__name">{d.district}</span>
+                            {shown.map((d) => {
+                              const hl = highlightDistrict === normalizeState(d.district);
+                              return (
+                              <li key={d.district} className={`dist__row${hl ? " dist__row--hl" : ""}${d.dataPoor ? " dist__row--dp" : ""}`} ref={hl ? distRowRef : null}>
+                                <span className="dist__name">{d.district}{d.dataPoor ? " · data-poor" : ""}</span>
                                 <span className="dist__bar"><span className="dist__fill" style={{ width: `${Math.round((d.gapScore / maxGap) * 100)}%`, background: gapColor(d.gapScore) }} /></span>
                                 <span className="dist__val">{d.strong}s · {d.nFacilities}f</span>
                               </li>
-                            ))}
+                              );
+                            })}
                           </ul>
                           <p className="note">Facility supply mapped to district via PIN postcode × NFHS-5 district need. Gap = need × scarcity within {sel.state}. {districts.length - realDist.length} districts are data-poor (no NFHS match or &lt;5 facilities) and excluded from the ranking.</p>
                         </>
