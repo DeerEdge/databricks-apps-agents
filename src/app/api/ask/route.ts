@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
 import { runSql } from "@/lib/databricks";
-import { parseQuestion, planSteps } from "@/lib/agent";
-import { explainGap, type GapInputs } from "@/lib/reasoning";
+import { askGenie } from "@/lib/genie";
+import { parseQuestion, planSteps, type ParsedQuestion } from "@/lib/agent";
+import { inferChartSpec } from "@/lib/chartSpec";
 
 export const dynamic = "force-dynamic";
 
 interface Citation { name: string; trust: string; citation: string }
 
-// POST /api/ask { question } — grounded planner agent. Parses the question, runs parameterized
-// queries against the gold tables, and returns a cited answer + its reasoning steps.
+interface RegionRow {
+  state: string;
+  nFacilities: number;
+  gapScore: number;
+  dataPoor: boolean;
+}
+
+// POST /api/ask { question } — Genie-backed planner agent. Genie answers the question and, when it
+// runs SQL, returns the result we visualize as a chart. We still parse the question locally to sync
+// the map (capability + focus state) and to attach cited facility evidence for that region.
 export async function POST(req: Request) {
-  let body: { question?: string };
+  let body: { question?: string; conversationId?: string };
   try {
     body = await req.json();
   } catch {
@@ -18,87 +27,42 @@ export async function POST(req: Request) {
   }
   const question = String(body.question ?? "").trim().slice(0, 500);
   if (!question) return NextResponse.json({ ok: false, error: "question required" }, { status: 400 });
+  // Optional: continue an existing Genie conversation (follow-up turn) instead of starting fresh.
+  const conversationId =
+    typeof body.conversationId === "string" && body.conversationId.trim() ? body.conversationId.trim() : undefined;
 
   try {
     const t0 = Date.now();
-    // 1) capability is keyword-only; pull that capability's regions to get the state list + data.
     const cap0 = parseQuestion(question).capability;
-    const { rows } = await runSql(
-      `SELECT state, n_facilities, strong, partial, weak, supply,
-              institutional_birth, insurance_pct, need_index, scarcity, gap_score, data_poor
-       FROM workspace.meddesert.region_gap WHERE capability = :cap`,
-      [{ name: "cap", value: cap0, type: "STRING" }]
-    );
-    const regions: GapInputs[] = rows.map((r) => ({
+
+    // Ask Genie and pull the capability's regions in parallel — the regions give us the known-state
+    // list (for question parsing) and drive map focus + citations.
+    const [genie, regionRes] = await Promise.all([
+      askGenie(question, conversationId),
+      runSql(
+        `SELECT state, n_facilities, gap_score, data_poor
+         FROM workspace.meddesert.region_gap WHERE capability = :cap`,
+        [{ name: "cap", value: cap0, type: "STRING" }]
+      ),
+    ]);
+
+    const regions: RegionRow[] = regionRes.rows.map((r) => ({
       state: String(r.state ?? ""),
       nFacilities: Number(r.n_facilities ?? 0),
-      strong: Number(r.strong ?? 0), partial: Number(r.partial ?? 0), weak: Number(r.weak ?? 0),
-      supply: Number(r.supply ?? 0),
-      institutionalBirth: r.institutional_birth == null ? null : Number(r.institutional_birth),
-      insurancePct: r.insurance_pct == null ? null : Number(r.insurance_pct),
-      needIndex: Number(r.need_index ?? 0), scarcity: Number(r.scarcity ?? 0),
-      gapScore: Number(r.gap_score ?? 0), dataPoor: r.data_poor === true || r.data_poor === "true",
+      gapScore: Number(r.gap_score ?? 0),
+      dataPoor: r.data_poor === true || r.data_poor === "true",
     }));
 
     const parsed = parseQuestion(question, regions.map((r) => r.state));
     const steps = planSteps(parsed);
-    const cap = parsed.capabilityLabel;
+    const focusState = computeFocus(parsed, regions);
 
-    let answer = "";
-    let citations: Citation[] = [];
-    let focusState: string | null = parsed.state;
+    const citations: Citation[] = focusState
+      ? await fetchCitations(parsed.capability, focusState)
+      : [];
 
-    if (parsed.intent === "compare") {
-      const found = parsed.states
-        .map((s) => regions.find((r) => r.state === s))
-        .filter((r): r is GapInputs => Boolean(r));
-      if (found.length < 2) {
-        const missing = parsed.states.filter((s) => !regions.some((r) => r.state === s));
-        answer = `I couldn't compare — no ${cap} data for ${missing.join(", ") || "one of those regions"}.`;
-        focusState = found[0]?.state ?? null;
-      } else {
-        const [a, b] = found;
-        const desc = (r: GapInputs) =>
-          r.dataPoor ? `${r.state} is data-poor (${explainGap(r, cap).verdict.reasons[0]})`
-            : `${r.state} has a gap of ${r.gapScore.toFixed(2)} (need ${r.needIndex.toFixed(2)}, ${r.strong} strong / ${r.nFacilities} facilities)`;
-        const rankable = found.filter((r) => !r.dataPoor).sort((x, y) => y.gapScore - x.gapScore);
-        const worse = rankable[0];
-        const verdict = rankable.length === 2
-          ? `**${worse.state} has the larger ${cap} gap** (${worse.gapScore.toFixed(2)} vs ${rankable[1].gapScore.toFixed(2)}) — prioritize it.`
-          : rankable.length === 1
-            ? `Only ${worse.state} is rankable; the other is data-poor and can't be confidently compared.`
-            : "Both are data-poor, so neither can be confidently ranked.";
-        answer = `${desc(a)}; ${desc(b)}. ${verdict}`;
-        focusState = (worse ?? a).state;
-        if (worse) citations = await fetchCitations(parsed.capability, worse.state);
-      }
-    } else if (parsed.intent === "gap_in_state" || parsed.intent === "facility_evidence") {
-      const region = regions.find((r) => r.state === parsed.state);
-      if (!region) {
-        answer = `I have no ${cap} data for ${parsed.state}. Try another state or ask for the worst gaps nationally.`;
-      } else {
-        citations = await fetchCitations(parsed.capability, region.state);
-        const ex = explainGap(region, cap);
-        if (region.dataPoor) {
-          answer = `${region.state} is **data-poor** for ${cap}, so I won't call it a confirmed gap. ${ex.verdict.reasons.join(" ")} Treat the ${region.nFacilities} records here as unverified.`;
-        } else {
-          answer = `${region.state} shows a **${cap} care gap of ${region.gapScore.toFixed(2)}** (need ${region.needIndex.toFixed(2)} × scarcity ${region.scarcity.toFixed(2)}). NFHS-5 institutional-birth is ${region.institutionalBirth}%, and only ${region.strong} of ${region.nFacilities} facilities carry strong ${cap} evidence. Below are the cited records.`;
-        }
-      }
-    } else if (parsed.intent === "data_poor") {
-      const dp = regions.filter((r) => r.dataPoor).sort((a, b) => b.nFacilities - a.nFacilities).slice(0, 8);
-      answer = dp.length
-        ? `${dp.length}+ regions are **data-poor** for ${cap} — too little verifiable evidence or no NFHS-5 need data to judge: ${dp.map((r) => r.state).join(", ")}. These should be treated as unknowns, not as "no gap".`
-        : `No regions are flagged data-poor for ${cap} — every state has enough evidence to assess.`;
-      focusState = dp[0]?.state ?? null;
-    } else {
-      // top_gaps
-      const top = regions.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore).slice(0, 5);
-      answer = top.length
-        ? `The worst **real ${cap} care gaps** (data-poor regions excluded) are: ${top.map((r, i) => `${i + 1}. ${r.state} (gap ${r.gapScore.toFixed(2)}, ${r.strong} strong / ${r.nFacilities} facilities)`).join("; ")}. Ranked by NFHS-5 need × trust-weighted scarcity.`
-        : `I couldn't find rankable ${cap} gaps — the data may be too sparse.`;
-      focusState = top[0]?.state ?? null;
-    }
+    const chart = genie.query ? inferChartSpec(genie.query.columns, genie.query.rows) : null;
+    const answer = genie.text || `I couldn't find an answer for that ${parsed.capabilityLabel} question.`;
 
     return NextResponse.json({
       ok: true,
@@ -106,13 +70,32 @@ export async function POST(req: Request) {
       parsed,
       steps,
       answer,
+      chart,
       citations,
       focusState,
-      meta: { ms: Date.now() - t0, rows: regions.length, source: "workspace.meddesert.region_gap + facility_capability", engine: "grounded agent · Databricks SQL" },
+      conversationId: genie.conversationId,
+      meta: { ms: Date.now() - t0, rows: regions.length, source: "Databricks Genie + workspace.meddesert", engine: "Databricks Genie" },
     });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "unknown error" }, { status: 500 });
   }
+}
+
+// Which region the map should focus and which region's evidence we cite: the named state if any,
+// otherwise the worst real gap (or, for data-poor questions, the largest data-poor region).
+function computeFocus(parsed: ParsedQuestion, regions: RegionRow[]): string | null {
+  if (parsed.intent === "compare") {
+    const found = parsed.states
+      .map((s) => regions.find((r) => r.state === s))
+      .filter((r): r is RegionRow => Boolean(r));
+    const worse = found.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore)[0];
+    return worse?.state ?? found[0]?.state ?? parsed.state;
+  }
+  if (parsed.state) return parsed.state;
+  if (parsed.intent === "data_poor") {
+    return regions.filter((r) => r.dataPoor).sort((a, b) => b.nFacilities - a.nFacilities)[0]?.state ?? null;
+  }
+  return regions.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore)[0]?.state ?? null;
 }
 
 async function fetchCitations(capability: string, state: string): Promise<Citation[]> {

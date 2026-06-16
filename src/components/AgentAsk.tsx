@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { trustClass } from "@/lib/meddesert";
+import type { ChartSpec } from "@/lib/chartSpec";
+import AgentChart from "./AgentChart";
 
 const SUGGESTIONS = [
   "Worst ICU gaps in India?",
@@ -11,7 +13,6 @@ const SUGGESTIONS = [
 ];
 
 interface Citation { name: string; trust: string; citation: string }
-interface Meta { ms: number; rows: number; source: string; engine: string }
 
 // Render text with **bold** spans without dangerouslySetInnerHTML (content is server-generated,
 // but React text nodes keep it injection-safe regardless).
@@ -30,24 +31,31 @@ export default function AgentAsk({ onResult }: { onResult: (capability: string, 
   const [shown, setShown] = useState(0);
   const [answer, setAnswer] = useState<string | null>(null);
   const [citations, setCitations] = useState<Citation[]>([]);
-  const [meta, setMeta] = useState<Meta | null>(null);
+  const [chart, setChart] = useState<ChartSpec | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Genie conversations are stateful: keep the id so the user can continue the same thread.
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [followUp, setFollowUp] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  async function ask(question: string) {
+  async function ask(question: string, continueThread = false) {
     const text = question.trim();
     if (!text || loading) return;
+    const threadId = continueThread ? conversationId : null; // continue the same Genie conversation
+    setFollowUp(continueThread && Boolean(threadId));
     setLoading(true);
     setErr(null);
     setAnswer(null);
     setCitations([]);
-    setMeta(null);
+    setChart(null);
     setSteps([]);
     setShown(0);
+    setQ("");
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({ question: text, conversationId: threadId ?? undefined }),
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.error ?? "agent failed");
@@ -57,7 +65,8 @@ export default function AgentAsk({ onResult }: { onResult: (capability: string, 
       setTimeout(() => {
         setAnswer(j.answer);
         setCitations(j.citations ?? []);
-        setMeta(j.meta ?? null);
+        setChart(j.chart ?? null);
+        setConversationId(j.conversationId ?? null);
         onResult(j.parsed.capability, j.focusState ?? null);
       }, j.steps.length * 320 + 120);
     } catch (e) {
@@ -67,6 +76,11 @@ export default function AgentAsk({ onResult }: { onResult: (capability: string, 
     }
   }
 
+  function continueConversation() {
+    setFollowUp(true);
+    inputRef.current?.focus();
+  }
+
   return (
     <section className="panel agent">
       <div className="panel__head">
@@ -74,16 +88,24 @@ export default function AgentAsk({ onResult }: { onResult: (capability: string, 
         <h2 className="panel__title">Ask in plain English</h2>
       </div>
       <div className="panel__body">
-        <form className="ask__form" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
-          <input className="ask__input" value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder="Where are the worst ICU gaps?" maxLength={500} aria-label="Ask the planner agent" />
+        {followUp && conversationId && (
+          <div className="ask__followup">
+            <span className="ask__followup-dot" />
+            Following up — the agent remembers this thread
+            <button type="button" className="ask__followup-new" onClick={() => setFollowUp(false)}>New topic</button>
+          </div>
+        )}
+        <form className="ask__form" onSubmit={(e) => { e.preventDefault(); ask(q, followUp); }}>
+          <input ref={inputRef} className="ask__input" value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder={followUp ? "Ask a follow-up question…" : "Where are the worst ICU gaps?"}
+            maxLength={500} aria-label="Ask the planner agent" />
           <button className="ask__send" disabled={loading || !q.trim()} aria-label="Ask">
             {loading ? <span className="ask__spin" /> : "→"}
           </button>
         </form>
         <div className="ask__chips">
           {SUGGESTIONS.map((s) => (
-            <button key={s} className="ask__chip" disabled={loading} onClick={() => { setQ(s); ask(s); }}>{s}</button>
+            <button key={s} className="ask__chip" disabled={loading} onClick={() => { setQ(s); ask(s, false); }}>{s}</button>
           ))}
         </div>
 
@@ -102,6 +124,7 @@ export default function AgentAsk({ onResult }: { onResult: (capability: string, 
         {answer && (
           <div className="ask__answer">
             <p className="ask__text"><Rich text={answer} /></p>
+            <AgentChart spec={chart} />
             {citations.length > 0 && (
               <ul className="ask__cites">
                 {citations.map((c, i) => (
@@ -115,7 +138,11 @@ export default function AgentAsk({ onResult }: { onResult: (capability: string, 
                 ))}
               </ul>
             )}
-            {meta && <div className="obs"><span className="obs__dot" /> {meta.engine} · {meta.rows} regions · {meta.ms}ms</div>}
+            {conversationId && !followUp && (
+              <button type="button" className="ask__continue" onClick={continueConversation}>
+                ↳ Continue this conversation
+              </button>
+            )}
           </div>
         )}
         {err && <p className="save__err">{err}</p>}
