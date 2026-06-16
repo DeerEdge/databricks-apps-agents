@@ -117,8 +117,8 @@ body::after {
 /* ── tabs ───────────────────────────────────────────── */
 /* ── floating capability selector (glass card on the left edge of the map) ── */
 .capfloat {
-  /* center on the viewport, not the map column — offset up by half the 60px topbar */
-  position: absolute; top: calc(50% - 30px); left: 16px; transform: translateY(-50%);
+  /* center on the viewport, not the map column — offset up past the topbar so it reads centered */
+  position: absolute; top: calc(50% - 64px); left: 16px; transform: translateY(-50%);
   z-index: 12;
   display: flex; flex-direction: column; gap: 4px;
   padding: 7px;
@@ -406,8 +406,7 @@ body::after {
 }
 .railtog__btn:hover { color: var(--ink); }
 .railtog__btn--on {
-  color: var(--ink); background: var(--paper); font-weight: 600;
-  box-shadow: 0 1px 2px rgba(20,24,30,0.08);
+  color: var(--ink); background: color-mix(in srgb, var(--accent) 15%, transparent); font-weight: 600;
 }
 
 /* ── top bar ────────────────────────────────────────── */
@@ -1387,9 +1386,9 @@ select.input {
   font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--ink-2);
   padding: 6px 8px; border: none; border-radius: 6px; background: none; transition: background 0.15s, color 0.15s;
 }
-.seg__btn--on { background: var(--paper); color: var(--ink); box-shadow: var(--shadow-sm); }
+.seg__btn--on { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--ink); }
 .seg__n { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); }
-.seg__btn--on .seg__n { color: var(--accent); }
+.seg__btn--on .seg__n { color: var(--ink); }
 .dp-tag {
   font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
   padding: 2px 7px; border-radius: 999px; background: var(--paper-sunk); color: var(--ink-3); border: 1px solid var(--hair);
@@ -1427,7 +1426,10 @@ select.input {
   display: flex; align-items: center; justify-content: center; gap: 5px; transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .tfilter__btn:hover:not(:disabled) { background: var(--paper-sunk); color: var(--ink); }
-.tfilter__btn--on { background: var(--accent); color: #f4f8fb; border-color: var(--accent); }
+.tfilter__btn--on {
+  background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
 .tfilter__btn:disabled { opacity: 0.4; cursor: default; }
 .tfilter__n { font-family: var(--font-mono); font-size: 10px; opacity: 0.85; }
 

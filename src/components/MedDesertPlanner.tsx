@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
-import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, orderCapabilityProfile, type CapabilityGap } from "@/lib/meddesert";
+import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState, orderCapabilityProfile, type CapabilityGap } from "@/lib/meddesert";
 import { explainGap, dataPoorReason } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
@@ -89,7 +89,7 @@ export default function MedDesertPlanner() {
   const hlRef = useRef<HTMLLIElement | null>(null);
   const [gapView, setGapView] = useState<"real" | "poor">("real");
   // The right sidebar toggles between the chat ("agent") and everything else ("info").
-  const [railView, setRailView] = useState<"agent" | "info">("agent");
+  const [railView, setRailView] = useState<"agent" | "info">("info");
 
   // Selecting a state populates the Info view — switch the sidebar to it so the detail shows.
   function selectState(s: string | null) {
@@ -401,7 +401,8 @@ export default function MedDesertPlanner() {
           {railView === "agent" ? (
             <AgentAsk onResult={(cap, state) => {
               if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
-              selectState(state);
+              // Sync the map focus but stay on the Agent tab so the answer stays visible.
+              setSelected(state);
             }} />
           ) : (
             <>

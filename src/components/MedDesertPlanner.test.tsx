@@ -25,21 +25,21 @@ describe("MedDesertPlanner layout", () => {
     expect(screen.queryByLabelText("Find by PIN code")).toBeNull(); // PIN removed
   });
 
-  it("defaults the sidebar to the Agent (chat) view", () => {
+  it("defaults the sidebar to the Info view", () => {
     render(<MedDesertPlanner />);
-    expect(screen.getByLabelText("Ask the planner agent")).not.toBeNull();
-    // Info-only content (the gap-ranking segmented control) isn't shown yet
-    expect(screen.queryByRole("button", { name: /Real gaps/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Real gaps/ })).not.toBeNull();
+    // The chat (Agent) input isn't shown until you switch to it
+    expect(screen.queryByLabelText("Ask the planner agent")).toBeNull();
   });
 
-  it("toggles the sidebar to Info and back to Agent", () => {
+  it("toggles the sidebar to Agent and back to Info", () => {
     render(<MedDesertPlanner />);
-    fireEvent.click(screen.getByRole("tab", { name: "Info" }));
-    expect(screen.queryByLabelText("Ask the planner agent")).toBeNull();
-    expect(screen.getByRole("button", { name: /Real gaps/ })).not.toBeNull();
-
     fireEvent.click(screen.getByRole("tab", { name: "Agent" }));
     expect(screen.getByLabelText("Ask the planner agent")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Real gaps/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Info" }));
+    expect(screen.getByRole("button", { name: /Real gaps/ })).not.toBeNull();
   });
 
   it("marks the chosen capability active in the floating stack", () => {
