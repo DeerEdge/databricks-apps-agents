@@ -36,3 +36,11 @@ env:
   # LAKEBASE_USER must match the PAT's identity (the email that owns the token).
   - name: LAKEBASE_USER
     valueFrom: meddesert-lakebase-user
+
+  # --- Cerebras inference (qualitative facility analysis) ---
+  # Model name is non-secret; the API key comes from app secret resource meddesert-cerebras-api-key
+  # (scope meddesert / key cerebras-api-key — set out of band, never inline).
+  - name: CEREBRAS_MODEL
+    value: gpt-oss-120b
+  - name: CEREBRAS_API_KEY
+    valueFrom: meddesert-cerebras-api-key
