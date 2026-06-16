@@ -342,7 +342,7 @@ export default function MedDesertPlanner() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/india-emblem.png" alt="Government of India" className="brand__logo" />
           <span className="brand__div" />
-          <span className="brand__name">Medical Desert Planner</span>
+          <span className="brand__name">MedIndia</span>
         </div>
       </header>
 

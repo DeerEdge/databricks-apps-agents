@@ -1098,7 +1098,7 @@ select.input {
   font-size: 10.5px; color: var(--ink-3); margin-top: 5px; line-height: 1.35;
 }
 .alloc__row__top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
-.alloc__county { font-size: 12.5px; color: var(--ink); }
+.alloc__county { font-family: var(--font-display); font-size: 12.5px; color: var(--ink); }
 .alloc__county span { color: var(--ink-3); font-style: italic; }
 .alloc__amt { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); }
 
