@@ -32,7 +32,13 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <nav className="app-nav">
+          <a href="/" className="app-nav__link">Medical Desert Planner</a>
+          <a href="/referral" className="app-nav__link">Referral Copilot</a>
+        </nav>
+        {children}
+      </body>
     </html>
   );
 }

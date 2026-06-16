@@ -36,6 +36,16 @@ introduce an ML model for the core scoring.
 The web app sends requests to Next.js backend endpoints; heavy data work and AI run on
 Databricks.
 
+### Project layout
+- **Application code** — `src/`, `public/`, `scripts/`, and root config (`package.json`,
+  `app.yaml`, etc.).
+- **Building infrastructure** — `building infrastructure/` holds agent workflow assets,
+  separate from the app:
+  - `building infrastructure/Skills/` — Cursor/agent skills that encode how we build
+    (design, TDD, debugging, Databricks-specific guidance).
+  - `building infrastructure/Loops/` — recurring automation loops.
+  - `building infrastructure/Subagents/` — specialized subagent definitions.
+
 ## Push & Repo Safety (read before every push)
 
 - **Never commit secrets.** No tokens, bearer credentials, `.env`, Databricks PATs,
@@ -76,6 +86,25 @@ Databricks.
 - Select only needed columns; push filters down to the query. No `SELECT *` in app code.
 - Cache deterministic / expensive results where correctness allows.
 
+## Behavioral Discipline — Before You Act
+
+These govern *how* to approach every task. Apply them before writing a single line.
+
+- **Think before coding.** State assumptions explicitly before implementing anything. If a
+  request is ambiguous, present interpretations and ask rather than picking one silently.
+  Push back when a simpler approach exists. Name confusion instead of guessing forward.
+- **Simplicity first.** Write the minimum code that fully solves the request. No features
+  beyond what was asked. No abstractions for single-use code. No "flexibility" or
+  "configurability" nobody requested. Ask: would a senior engineer call this overcomplicated?
+- **Surgical changes.** Touch only what the task requires. Do not improve adjacent code,
+  comments, or formatting unless explicitly asked. Do not refactor working code as a side
+  effect. If unrelated dead code is noticed, mention it — don't delete it. Every changed
+  line must trace directly to the request.
+- **Goal-driven execution.** Transform imperative requests into verifiable success criteria
+  before acting. "Fix the bug" → "Write a test that reproduces it, then make it pass."
+  "Refactor X" → "Ensure all tests pass before and after." Strong criteria let you loop
+  and verify independently without constant clarification.
+
 ## Code Quality — Concise & Clear
 
 - **Write code that reads like the surrounding code.** Match existing naming, structure,
@@ -106,9 +135,24 @@ in isolation** — there are no exceptions for "small" or "obvious" code.
 
 ## Skills — use them, every time
 
-We have skills that encode HOW we build well. They are not ceremony — they are how we
-genuinely **understand** what we're building and implement features **thoroughly** rather than
-shallowly. If there's even a chance a skill applies, invoke it **before** acting.
+Skills live in `building infrastructure/Skills/`. They encode HOW we build well — not
+ceremony, but how we genuinely **understand** what we're building and implement features
+**thoroughly** rather than shallowly. If there's even a chance a skill applies, invoke it
+**before** acting.
+
+### Project-specific skills (read these first for any code task)
+
+These are in `building infrastructure/Skills/project-skills/`:
+
+| Skill | Path | When to use |
+|---|---|---|
+| `data-model` | `project-skills/data-model/SKILL.md` | Before writing any query, route, or data-processing logic — gold table schemas, trust model, gap formula, SQL patterns |
+| `api-routes` | `project-skills/api-routes/SKILL.md` | Before adding or modifying any endpoint — all route contracts, request/response shapes, conventions |
+| `testing-patterns` | `project-skills/testing-patterns/SKILL.md` | Before writing any test — vitest setup, Databricks/Lakebase mock patterns, mandatory checklist |
+| `feature-workflow` | `project-skills/feature-workflow/SKILL.md` | Before starting any feature — end-to-end sequence (lib → route → test → UI), definition of done |
+| `maya-referral` | `project-skills/maya-referral/SKILL.md` | Before modifying any Track 3 code — Maya system prompt, Mosaic AI tool-calling, referral SQL patterns, ranking, UI structure, known pitfalls |
+
+### General process skills
 
 - **Designing a feature / changing behavior** → `brainstorming` first (explore intent,
   constraints, and the design) before any code.
@@ -118,9 +162,9 @@ shallowly. If there's even a chance a skill applies, invoke it **before** acting
 - **Planning multi-step work** → `writing-plans`; **executing a plan** → the executing skills.
 - **Before declaring done** → `verification-before-completion`: run it, show the output.
 
-Process skills come first (they determine HOW we approach the task), implementation skills
-second. Use the skill fully — don't adapt away its discipline. Shallow implementation is a
-failure mode these skills exist to prevent.
+Project skills come before general skills — read the relevant project skill first, then
+apply the general process skill on top. Use the skill fully — don't adapt away its
+discipline. Shallow implementation is a failure mode these skills exist to prevent.
 
 ## Reference: What "Open Sharing" Is
 
@@ -139,3 +183,17 @@ stays current.
 Why it matters here: it enables cross-org data/skill collaboration (NGOs, hospitals, cities)
 without vendor lock-in or copying sensitive datasets. Every shared access is governed and
 auditable via Unity Catalog. If we use it, treat credential files as secrets (see Security).
+
+## STATUS.md — Living Project Log
+
+`STATUS.md` is the institutional memory of this project: learned lessons, anti-patterns
+discovered, architectural decisions made, and the current state of every major area.
+
+**Update `STATUS.md` whenever:**
+- A milestone (MDx) is completed or materially changed.
+- A significant bug is fixed and the root cause is understood.
+- An architectural decision is made or reversed.
+- A new constraint, risk, or "don't do this" lesson is learned.
+
+Keep entries dated and terse. The goal is that anyone picking up the project mid-stream
+can read `STATUS.md` in under five minutes and know exactly where things stand.
