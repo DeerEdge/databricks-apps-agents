@@ -391,7 +391,7 @@ const RADIUS_ESCALATION = [100, 200];
 async function runCapabilitySearch(capability: string, lat: number, lon: number, radius: number): Promise<ReferralCandidate[]> {
   const { rows } = await runSql(
     `SELECT * FROM (
-       SELECT fc.facility_id, fb.name, fb.city, fb.state, fb.latitude, fb.longitude,
+       SELECT fc.unique_id AS facility_id, fb.name, fb.city, fb.state, fb.latitude, fb.longitude,
               fc.trust, fc.citation,
               fb.specialties, fb.procedure, fb.equipment, fb.description, fb.capability AS fb_capability,
               (6371 * acos(
@@ -400,7 +400,7 @@ async function runCapabilitySearch(capability: string, lat: number, lon: number,
                 + sin(radians(:lat)) * sin(radians(fb.latitude)))
               )) AS distance_km
        FROM workspace.meddesert.facility_base fb
-       JOIN workspace.meddesert.facility_capability fc ON fb.unique_id = fc.facility_id
+       JOIN workspace.meddesert.facility_capability fc ON fb.unique_id = fc.unique_id
        WHERE fc.capability = :cap AND fc.trust <> 'none'
          AND fb.latitude IS NOT NULL AND fb.longitude IS NOT NULL
      ) t
@@ -705,6 +705,7 @@ export async function POST(req: Request) {
                 result = { error: `Unknown tool: ${tc.function.name}` };
             }
           } catch (toolErr) {
+            console.error("[Maya tool error]", tc.function.name, toolErr instanceof Error ? toolErr.message : toolErr);
             result = { error: "Search could not be completed. Please try a different query." };
           }
 
