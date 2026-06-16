@@ -1,9 +1,11 @@
-# Databricks App spec (Free Edition). Databricks injects PORT and runs this command;
-# `next start` binds 0.0.0.0:$PORT automatically.
+# Databricks App spec (Free Edition). On deploy, Databricks runs:
+#   npm install  →  npm run build (next build)  →  npm run start (next start).
+# `next start` binds 0.0.0.0:$PORT automatically from the injected PORT — do not hardcode a port.
 #
-# Non-secret runtime config goes here. SECRETS (DATABRICKS_TOKEN) must NOT be inlined —
-# set them as Databricks secrets / app resources and reference with valueFrom, or rely on
-# the app service principal's automatic auth. Never commit a token (see CLAUDE.md).
+# SECRETS NEVER GO HERE. The Databricks PAT and the Lakebase identity email are set as
+# app secrets / app-environment values at deploy time (see DEPLOY.md), never committed —
+# this file lives in a PUBLIC repo (hackathon Rule 4.3(d)). The values below are non-secret
+# infra identifiers that are useless without the token.
 command:
   - npm
   - run
@@ -12,19 +14,25 @@ command:
 env:
   - name: NODE_ENV
     value: production
-  # --- set these for your workspace (non-secret) ---
-  # - name: DATABRICKS_HOST
-  #   value: https://<workspace>.cloud.databricks.com
-  # - name: DATABRICKS_WAREHOUSE_ID
-  #   value: <warehouse-id>
-  # - name: LAKEBASE_INSTANCE
-  #   value: meddesert
-  # - name: LAKEBASE_HOST
-  #   value: <instance-read_write_dns>
-  # - name: LAKEBASE_USER
-  #   value: <app-service-principal-or-email>
-  # - name: LAKEBASE_DATABASE
-  #   value: databricks_postgres
-  # --- secret: reference a Databricks secret, never inline ---
-  # - name: DATABRICKS_TOKEN
-  #   valueFrom: meddesert-token
+
+  # --- non-secret workspace infra ---
+  - name: DATABRICKS_HOST
+    value: https://dbc-837977ce-19e0.cloud.databricks.com
+  - name: DATABRICKS_WAREHOUSE_ID
+    value: 6c9078480dee0864
+
+  # --- non-secret Lakebase infra ---
+  - name: LAKEBASE_INSTANCE
+    value: meddesert
+  - name: LAKEBASE_HOST
+    value: ep-late-smoke-d8kfur2q.database.us-east-2.cloud.databricks.com
+  - name: LAKEBASE_DATABASE
+    value: databricks_postgres
+
+  # --- secrets: PAT + Lakebase identity, from app secret resources (never inline) ---
+  # Resource keys map to scope meddesert: token, lakebase-user (see DEPLOY.md / apps update --json).
+  - name: DATABRICKS_TOKEN
+    valueFrom: meddesert-token
+  # LAKEBASE_USER must match the PAT's identity (the email that owns the token).
+  - name: LAKEBASE_USER
+    valueFrom: meddesert-lakebase-user

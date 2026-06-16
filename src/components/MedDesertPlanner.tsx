@@ -29,6 +29,21 @@ interface Facility {
   claim: boolean;
   lat: number | null;
   lon: number | null;
+  // Merged from /api/facility-images after facilities load
+  imageUrl?: string | null;
+  imageConfidence?: number | null;
+  hasIcuImage?: boolean;
+  galleryCount?: number;
+}
+
+interface FacilityImageAsset {
+  hospitalName: string;
+  city: string;
+  primaryImageUrl: string | null;
+  imageAvailable: boolean;
+  confidence: number;
+  galleryCount: number;
+  hasIcuImage: boolean;
 }
 
 interface Scenario {
@@ -64,6 +79,10 @@ export default function MedDesertPlanner() {
   const [showDistricts, setShowDistricts] = useState(false);
   const [capProfile, setCapProfile] = useState<CapabilityGap[]>([]);
   const [trustFilter, setTrustFilter] = useState<"all" | "strong" | "partial" | "weak">("all");
+  const [shortlist, setShortlist] = useState<{ id: string; facilityName: string; capability: string; state: string; trust: string }[]>([]);
+
+  const loadShortlist = () =>
+    fetch("/api/shortlist").then((r) => r.json()).then((j) => setShortlist(j.ok ? j.items : [])).catch(() => {});
   const [briefId, setBriefId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [highlightFac, setHighlightFac] = useState<string | null>(null);
@@ -124,7 +143,7 @@ export default function MedDesertPlanner() {
       .then((j) => setScenarios(j.ok ? j.scenarios : []))
       .catch(() => {});
 
-  useEffect(() => { loadScenarios(); }, []);
+  useEffect(() => { loadScenarios(); loadShortlist(); }, []);
   useEffect(() => { setNote(""); setSaveErr(null); setTrustFilter("all"); }, [selected, capability]);
 
   useEffect(() => {
@@ -136,18 +155,48 @@ export default function MedDesertPlanner() {
       .finally(() => setLoading(false));
   }, [capability]);
 
-  // Drill-in: load the facility records (with cited evidence) behind the selected state.
-  // Trust filter is applied server-side so each level's full set is reachable.
+  // Drill-in: load facility records + image assets in parallel, then merge them.
+  // Image assets come from the enrichment pipeline (workspace.meddesert.hospital_map_assets).
+  // If the pipeline hasn't run yet the image call returns [] and facilities render without images.
   useEffect(() => {
     if (!selected) { setFacilities([]); return; }
     setFacLoading(true);
     const ctrl = new AbortController();
     const tq = trustFilter === "all" ? "" : `&trust=${trustFilter}`;
-    fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}${tq}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((j) => { setFacilities(j.ok ? j.facilities : []); setFacMeta(j.meta ?? null); })
+
+    Promise.all([
+      fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}${tq}`, { signal: ctrl.signal })
+        .then((r) => r.json()),
+      fetch(`/api/facility-images?state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+        .then((r) => r.json())
+        .catch(() => ({ ok: false, assets: [] })),
+    ])
+      .then(([facJson, imgJson]) => {
+        if (ctrl.signal.aborted) return;
+        const rawFacilities: Facility[] = facJson.ok ? facJson.facilities : [];
+        setFacMeta(facJson.meta ?? null);
+
+        // Build a lookup by hospital name (the natural join key between tables)
+        const imgMap = new Map<string, FacilityImageAsset>();
+        if (imgJson.ok && Array.isArray(imgJson.assets)) {
+          for (const a of imgJson.assets as FacilityImageAsset[]) {
+            imgMap.set(a.hospitalName, a);
+          }
+        }
+
+        setFacilities(
+          rawFacilities.map((f) => {
+            const img = imgMap.get(f.name);
+            return img
+              ? { ...f, imageUrl: img.primaryImageUrl, imageConfidence: img.confidence,
+                  hasIcuImage: img.hasIcuImage, galleryCount: img.galleryCount }
+              : f;
+          })
+        );
+      })
       .catch(() => { if (!ctrl.signal.aborted) setFacilities([]); })
       .finally(() => { if (!ctrl.signal.aborted) setFacLoading(false); });
+
     return () => ctrl.abort();
   }, [selected, capability, trustFilter]);
 
@@ -225,6 +274,21 @@ export default function MedDesertPlanner() {
     if (!o) return;
     await fetch(`/api/overrides?id=${o.id}`, { method: "DELETE" }).catch(() => {});
     setOverrides((p) => { const n = { ...p }; delete n[name]; return n; });
+  }
+
+  async function toggleShortlist(f: Facility) {
+    if (!sel) return;
+    const existing = shortlist.find((s) => s.facilityName === f.name && s.capability === capability && normalizeState(s.state) === normalizeState(sel.state));
+    if (existing) {
+      await fetch(`/api/shortlist?id=${existing.id}`, { method: "DELETE" }).catch(() => {});
+    } else {
+      await fetch("/api/shortlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facilityName: f.name, capability, state: sel.state, trust: f.trust, citation: f.citation }),
+      }).catch(() => {});
+    }
+    await loadShortlist();
   }
 
   async function copyBrief(s: Scenario) {
@@ -539,11 +603,16 @@ export default function MedDesertPlanner() {
                 <ul className="evid">
                   {facilities.map((f, i) => {
                     const hl = highlightFac === f.name;
+                    const listed = shortlist.some((s) => s.facilityName === f.name && s.capability === capability && normalizeState(s.state) === normalizeState(sel.state));
                     return (
                     <li key={`${f.name}-${i}`} className={`fac${hl ? " fac--hl" : ""}`} ref={hl ? hlRef : null}>
                       <div className="fac__top">
                         <span className="fac__name">{f.name || "Unnamed facility"}</span>
-                        <span className={`trust ${trustClass(f.trust)}`}>{trustLabel(f.trust)}</span>
+                        <div className="fac__top-r">
+                          <button className={`star${listed ? " star--on" : ""}`} title={listed ? "Remove from shortlist" : "Add to shortlist"}
+                            aria-label="Toggle shortlist" onClick={() => toggleShortlist(f)}>{listed ? "★" : "☆"}</button>
+                          <span className={`trust ${trustClass(f.trust)}`}>{trustLabel(f.trust)}</span>
+                        </div>
                       </div>
                       {f.city && <div className="fac__city">{f.city}</div>}
                       {f.citation && <blockquote className="fac__cite">“{f.citation}”</blockquote>}

@@ -37,14 +37,20 @@ export async function POST(req: Request) {
 
     // Ask Genie and pull the capability's regions in parallel — the regions give us the known-state
     // list (for question parsing) and drive map focus + citations.
-    const [genie, regionRes] = await Promise.all([
-      askGenie(question, conversationId),
+    // Genie is optional: if DATABRICKS_GENIE_SPACE_ID is not configured, skip it and return
+    // a local-only answer built from facility citations.
+    const [genieResult, regionRes] = await Promise.all([
+      askGenie(question, conversationId).catch((e: Error) => {
+        if (e.message.includes("Genie env not configured")) return null;
+        throw e;
+      }),
       runSql(
         `SELECT state, n_facilities, gap_score, data_poor
          FROM workspace.meddesert.region_gap WHERE capability = :cap`,
         [{ name: "cap", value: cap0, type: "STRING" }]
       ),
     ]);
+    const genie = genieResult;
 
     const regions: RegionRow[] = regionRes.rows.map((r) => ({
       state: String(r.state ?? ""),
@@ -61,8 +67,8 @@ export async function POST(req: Request) {
       ? await fetchCitations(parsed.capability, focusState)
       : [];
 
-    const chart = genie.query ? inferChartSpec(genie.query.columns, genie.query.rows) : null;
-    const answer = genie.text || `I couldn't find an answer for that ${parsed.capabilityLabel} question.`;
+    const chart = genie?.query ? inferChartSpec(genie.query.columns, genie.query.rows) : null;
+    const answer = genie?.text || `Showing ${parsed.capabilityLabel} data${focusState ? ` for ${focusState}` : " across India"}.`;
 
     return NextResponse.json({
       ok: true,
@@ -73,7 +79,7 @@ export async function POST(req: Request) {
       chart,
       citations,
       focusState,
-      conversationId: genie.conversationId,
+      conversationId: genie?.conversationId ?? null,
       meta: { ms: Date.now() - t0, rows: regions.length, source: "Databricks Genie + workspace.meddesert", engine: "Databricks Genie" },
     });
   } catch (e) {
