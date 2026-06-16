@@ -77,6 +77,38 @@ export default function MedDesertPlanner() {
   const wantDistrictRef = useRef<string | null>(null);
   const [gapView, setGapView] = useState<"real" | "poor">("real");
 
+  // Resizable planner rail (the chatbot + panels column). null = use the CSS default width.
+  const [railW, setRailW] = useState<number | null>(null);
+  useEffect(() => {
+    const saved = Number(localStorage.getItem("railW"));
+    if (saved >= 340 && saved <= 900) setRailW(saved);
+  }, []);
+  function startRailResize(e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = railW ?? 460;
+    let lastW = startW;
+    const handle = e.currentTarget as HTMLElement;
+    handle.classList.add("rail__resize--active");
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    const onMove = (ev: MouseEvent) => {
+      const max = Math.min(900, Math.round(window.innerWidth * 0.6));
+      lastW = Math.max(340, Math.min(max, startW + (startX - ev.clientX))); // drag left edge ← widens
+      setRailW(lastW);
+    };
+    const onUp = () => {
+      handle.classList.remove("rail__resize--active");
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      localStorage.setItem("railW", String(lastW));
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
   // When a facility point on the map is clicked, scroll its evidence card into view.
   useEffect(() => {
     if (!highlightFac) return;
@@ -340,7 +372,9 @@ export default function MedDesertPlanner() {
           </div>
         </section>
 
-        <aside className="rail">
+        <aside className="rail" style={railW ? { width: railW } : undefined}>
+          <div className="rail__resize" onMouseDown={startRailResize} role="separator"
+            aria-orientation="vertical" aria-label="Resize panel" title="Drag to resize" />
           <form className="pin" onSubmit={resolvePin}>
             <input className="pin__input" value={pin} onChange={(e) => { setPin(e.target.value); setPinErr(null); }}
               placeholder="Jump to a PIN code (e.g. 812001)" inputMode="numeric" maxLength={12} aria-label="Find by PIN code" />

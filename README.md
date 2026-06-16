@@ -67,7 +67,7 @@ cp .env.template .env.local   # fill in Databricks values
 | `DATABRICKS_HOST` | yes | `https://<workspace>.cloud.databricks.com` |
 | `DATABRICKS_TOKEN` | yes | PAT (server-only; rotate after the hackathon) |
 | `DATABRICKS_WAREHOUSE_ID` | yes | SQL warehouse id |
-| `DATABRICKS_GENIE_SPACE_ID` | optional | a Genie space over `workspace.meddesert` (enables Genie mode) |
+| `DATABRICKS_GENIE_SPACE_ID` | yes | a Genie space over `workspace.meddesert` — powers the AI planner chatbot (`/api/ask`) and its in-chat charts |
 | `NEXT_PUBLIC_MAP_STYLE_URL` | optional | blank = free CARTO basemap |
 
 ## Build gold tables in Databricks
