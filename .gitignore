@@ -27,3 +27,6 @@ next-env.d.ts
 __pycache__/
 *.pyc
 .claude/
+
+# judge access walkthrough — contains demo login credentials, NEVER commit (paste into Devpost)
+JUDGE_ACCESS.md
