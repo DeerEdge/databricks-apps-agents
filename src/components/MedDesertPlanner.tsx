@@ -65,6 +65,10 @@ export default function MedDesertPlanner() {
   const [showDistricts, setShowDistricts] = useState(false);
   const [capProfile, setCapProfile] = useState<CapabilityGap[]>([]);
   const [trustFilter, setTrustFilter] = useState<"all" | "strong" | "partial" | "weak">("all");
+  const [shortlist, setShortlist] = useState<{ id: string; facilityName: string; capability: string; state: string; trust: string }[]>([]);
+
+  const loadShortlist = () =>
+    fetch("/api/shortlist").then((r) => r.json()).then((j) => setShortlist(j.ok ? j.items : [])).catch(() => {});
   const [briefId, setBriefId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [highlightFac, setHighlightFac] = useState<string | null>(null);
@@ -91,7 +95,7 @@ export default function MedDesertPlanner() {
       .then((j) => setScenarios(j.ok ? j.scenarios : []))
       .catch(() => {});
 
-  useEffect(() => { loadScenarios(); }, []);
+  useEffect(() => { loadScenarios(); loadShortlist(); }, []);
   useEffect(() => { setNote(""); setSaveErr(null); setTrustFilter("all"); }, [selected, capability]);
 
   useEffect(() => {
@@ -200,6 +204,21 @@ export default function MedDesertPlanner() {
     if (!o) return;
     await fetch(`/api/overrides?id=${o.id}`, { method: "DELETE" }).catch(() => {});
     setOverrides((p) => { const n = { ...p }; delete n[name]; return n; });
+  }
+
+  async function toggleShortlist(f: Facility) {
+    if (!sel) return;
+    const existing = shortlist.find((s) => s.facilityName === f.name && s.capability === capability && normalizeState(s.state) === normalizeState(sel.state));
+    if (existing) {
+      await fetch(`/api/shortlist?id=${existing.id}`, { method: "DELETE" }).catch(() => {});
+    } else {
+      await fetch("/api/shortlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facilityName: f.name, capability, state: sel.state, trust: f.trust, citation: f.citation }),
+      }).catch(() => {});
+    }
+    await loadShortlist();
   }
 
   async function copyBrief(s: Scenario) {
@@ -559,11 +578,16 @@ export default function MedDesertPlanner() {
                 <ul className="evid">
                   {facilities.map((f, i) => {
                     const hl = highlightFac === f.name;
+                    const listed = shortlist.some((s) => s.facilityName === f.name && s.capability === capability && normalizeState(s.state) === normalizeState(sel.state));
                     return (
                     <li key={`${f.name}-${i}`} className={`fac${hl ? " fac--hl" : ""}`} ref={hl ? hlRef : null}>
                       <div className="fac__top">
                         <span className="fac__name">{f.name || "Unnamed facility"}</span>
-                        <span className={`trust ${trustClass(f.trust)}`}>{trustLabel(f.trust)}</span>
+                        <div className="fac__top-r">
+                          <button className={`star${listed ? " star--on" : ""}`} title={listed ? "Remove from shortlist" : "Add to shortlist"}
+                            aria-label="Toggle shortlist" onClick={() => toggleShortlist(f)}>{listed ? "★" : "☆"}</button>
+                          <span className={`trust ${trustClass(f.trust)}`}>{trustLabel(f.trust)}</span>
+                        </div>
                       </div>
                       {f.city && <div className="fac__city">{f.city}</div>}
                       {f.citation && <blockquote className="fac__cite">“{f.citation}”</blockquote>}
@@ -650,6 +674,30 @@ export default function MedDesertPlanner() {
                           <pre className="brief__pre">{scenarioBrief(s)}</pre>
                         </div>
                       )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )}
+
+          {shortlist.length > 0 && (
+            <section className="panel">
+              <div className="panel__head">
+                <div className="panel__eyebrow">Persisted · Lakebase</div>
+                <h2 className="panel__title">Facility shortlist <span className="seg__n">{shortlist.length}</span></h2>
+              </div>
+              <div className="panel__body">
+                <ul className="scen">
+                  {shortlist.map((s) => (
+                    <li key={s.id} className="scen__item">
+                      <div className="scen__top">
+                        <button className="scen__title" onClick={() => { setCapability(s.capability as CapabilityKey); setSelected(s.state); }}>
+                          {s.facilityName}
+                        </button>
+                        <button className="scen__del" onClick={async () => { await fetch(`/api/shortlist?id=${s.id}`, { method: "DELETE" }).catch(() => {}); loadShortlist(); }} aria-label="Remove">✕</button>
+                      </div>
+                      <div className="scen__meta">{s.state} · {s.capability.toUpperCase()} · <span className={`trust ${trustClass(s.trust)}`}>{s.trust}</span></div>
                     </li>
                   ))}
                 </ul>

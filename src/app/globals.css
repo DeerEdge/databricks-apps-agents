@@ -1336,3 +1336,10 @@ select.input {
 .tfilter__btn--on { background: var(--accent); color: #f4f8fb; border-color: var(--accent); }
 .tfilter__btn:disabled { opacity: 0.4; cursor: default; }
 .tfilter__n { font-family: var(--font-mono); font-size: 10px; opacity: 0.85; }
+
+/* ── facility shortlist (star toggle) ────────────────── */
+.fac__top-r { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.star { background: none; border: none; cursor: pointer; font-size: 15px; line-height: 1; color: var(--ink-3); padding: 0 2px; transition: color 0.12s, transform 0.1s; }
+.star:hover { color: var(--accent-warm); transform: scale(1.15); }
+.star--on { color: #e0a32e; }
+.scen__meta .trust { padding: 1px 6px; font-size: 9px; }
