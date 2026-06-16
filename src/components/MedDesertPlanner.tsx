@@ -338,11 +338,6 @@ export default function MedDesertPlanner() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/databricks-summit.png" alt="Databricks Data+AI Summit" className="brand__logo" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/india-emblem.png" alt="Government of India" className="brand__logo" />
-          <span className="brand__div" />
           <span className="brand__name">MedIndia</span>
         </div>
       </header>

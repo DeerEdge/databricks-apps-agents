@@ -30,3 +30,7 @@ __pycache__/
 
 # judge access walkthrough — contains demo login credentials, NEVER commit (paste into Devpost)
 JUDGE_ACCESS.md
+
+# Databricks' official rules PDF is CONFIDENTIAL & PROPRIETARY — never commit to a public repo
+DAIS Apps & Agents Hackathon for Good 26 Official Rules.docx.pdf
+*.pdf
