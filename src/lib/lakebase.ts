@@ -9,6 +9,7 @@
 import { Pool } from "pg";
 import type { CleanScenario } from "./scenario";
 import type { CleanOverride } from "./override";
+import type { CleanShortlistInput, SavedShortlistItem } from "./referral";
 
 const DBX_HOST = process.env.DATABRICKS_HOST;
 const DBX_TOKEN = process.env.DATABRICKS_TOKEN;
@@ -97,6 +98,21 @@ function ensureSchema(): Promise<void> {
          state         text NOT NULL,
          override_trust text NOT NULL,
          note          text NOT NULL DEFAULT ''
+       );
+       CREATE TABLE IF NOT EXISTS saved_shortlist (
+         id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+         created_at    timestamptz NOT NULL DEFAULT now(),
+         facility_id   text NOT NULL,
+         name          text NOT NULL,
+         city          text NOT NULL DEFAULT '',
+         state         text NOT NULL,
+         lat           double precision NOT NULL,
+         lon           double precision NOT NULL,
+         distance_km   double precision NOT NULL,
+         trust         text NOT NULL,
+         citation      text NOT NULL DEFAULT '',
+         query_context text NOT NULL DEFAULT '',
+         note          text NOT NULL DEFAULT ''
        )`
     )
     .then(() => undefined)
@@ -164,6 +180,33 @@ export async function deleteOverride(id: string): Promise<boolean> {
   return (rowCount ?? 0) > 0;
 }
 
+export async function saveShortlistItem(s: CleanShortlistInput): Promise<SavedShortlistItem> {
+  await ensureSchema();
+  const { rows } = await getPool().query(
+    `INSERT INTO saved_shortlist (facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING id, created_at, facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note`,
+    [s.facilityId, s.name, s.city, s.state, s.lat, s.lon, s.distanceKm, s.trust, s.citation, s.queryContext, s.note]
+  );
+  return toShortlistItem(rows[0]);
+}
+
+export async function listShortlist(limit = 50): Promise<SavedShortlistItem[]> {
+  await ensureSchema();
+  const { rows } = await getPool().query(
+    `SELECT id, created_at, facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note
+     FROM saved_shortlist ORDER BY created_at DESC LIMIT $1`,
+    [limit]
+  );
+  return rows.map(toShortlistItem);
+}
+
+export async function deleteShortlistItem(id: string): Promise<boolean> {
+  await ensureSchema();
+  const { rowCount } = await getPool().query(`DELETE FROM saved_shortlist WHERE id = $1`, [id]);
+  return (rowCount ?? 0) > 0;
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function toOverride(r: any): SavedOverride {
   return {
@@ -188,6 +231,24 @@ function toScenario(r: any): SavedScenario {
     nFacilities: Number(r.n_facilities ?? 0),
     note: r.note ?? "",
     evidence: Array.isArray(r.evidence) ? r.evidence : [],
+  };
+}
+
+function toShortlistItem(r: any): SavedShortlistItem {
+  return {
+    id: String(r.id),
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    facilityId: r.facility_id,
+    name: r.name,
+    city: r.city ?? "",
+    state: r.state,
+    lat: Number(r.lat),
+    lon: Number(r.lon),
+    distanceKm: Number(r.distance_km),
+    trust: r.trust,
+    citation: r.citation ?? "",
+    queryContext: r.query_context ?? "",
+    note: r.note ?? "",
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

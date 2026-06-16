@@ -109,6 +109,66 @@ drills into facility records and **persists planning scenarios**.
       numbered animated steps, and a tinted grounded-answer card. Cleaner, premium feel. Verified
       live (chip → numbered steps → answer). Build clean, 58 tests pass.
 
+- [x] **MD15 — PIN-code geography.** A PIN search box resolves a 6-digit PIN → district + state
+      via the India Post directory (`/api/pin`), then selects that state, opens the district
+      breakdown, and highlights+scrolls to the matched district (shown even if data-poor / outside
+      top-12). `pin.ts` `normalizePin` pure (5 tests). Verified live: 812001 → Bihar / BHAGALPUR
+      highlighted. Completes the state/district/PIN geography trio (63 tests, build clean).
+
+- [x] **MD16 — data-poor explorer.** Segmented toggle in the rankings panel: "Real gaps (N)" ↔
+      "Data-poor (N)". The data-poor list shows each region with the reason it can't be ranked
+      (no verifiable evidence / too few facilities / no NFHS-5 need data) and frames them as
+      data-collection candidates, not "no gap". `dataPoorReason` pure (1 test). Verified live (real:
+      Meghalaya top; data-poor: Maharashtra/Delhi "no NFHS-5 need data"). Directly serves the core
+      "distinguish REAL gaps from DATA-POOR" requirement. Self-critical: many big states fall in
+      data-poor due to the *state-level* NFHS name-join being incomplete — the district-level
+      `district_gap` matches NFHS far better; consolidating state need onto the cleaner PIN-derived
+      state key is the real fix.
+
+- [x] **MD17 — canonical NFHS state join (data-quality fix).** Root-caused why big states fell
+      into "data-poor": NFHS-5 spells states differently (MAHARASTRA, NCT OF DELHI, JAMMU KASHMIR)
+      than the facility/PIN names, so the exact-match join dropped them. Added a canonical key
+      (alpha-only, strip AND/THE, alias the two irreducible spellings) on both sides of
+      `region_gap ⋈ region_burden`. Verified: Maharashtra/Delhi/Tamil Nadu/Karnataka/Telangana/
+      W. Bengal/Andhra/J&K now carry real NFHS need and rank as *low* gaps (high institutional-birth
+      = low need) instead of false "data-poor". Real states 24→28; top gaps unchanged (Meghalaya,
+      Manipur, Jharkhand, Bihar). Live API confirms Maharashtra/Delhi dataPoor=false.
+
+- [x] **MD18 — agent COMPARE intent.** The planner agent now handles "compare ICU in Bihar and
+      Kerala" → contrasts need / trust-weighted supply / gap score for both regions, names the
+      higher-gap one to prioritize, and cites its evidence. `detectStates` (multi-state, ordered)
+      + compare branch in `/api/ask`. Caught & fixed a real substring-match bug (the messy state
+      value "Mp" matched inside "co**mp**are", and "Bihar?" failed token match) → switched to
+      punctuation-aware token matching. 70 tests pass; verified live across all 5 intents + in the UI.
+
+- [x] **MD19 — cross-capability profile.** Selecting a state shows its gap across ALL six
+      capabilities (ordered worst-real-gap first, data-poor last) so a planner sees which clinical
+      service is most lacking *there*; clicking a row switches the active capability. `/api/state-
+      capabilities` (one query) + `orderCapabilityProfile` pure (2 tests). Verified live: Bihar →
+      oncology 0.19 top, click Maternity → tab switches. 72 tests, build clean.
+
+- [x] **MD20 — empty-state onboarding.** Before any region is selected, the rail shows a guide
+      card: the 4-step workflow (pick capability → choose place → inspect cited evidence → save),
+      a trust-signal legend (strong/partial/weak/none with what each means), and the honesty note
+      (transparent need×scarcity formula, data-poor never assumed "no gap", data sources). Doubles
+      as judge-facing methodology; clears once a state is selected. Verified live (shows → select →
+      hides). 72 tests, build clean.
+
+- [x] **MD21 — evidence trust filter.** The facility drill-in now has All / Strong / Partial /
+      Weak filter chips (with live counts; empty levels disabled), so a planner can focus on only
+      verified facilities. `countByTrust` pure (2 tests). Verified live: Bihar ICU → All 60 /
+      Strong 39 / Partial 21, filtering to Strong shows only strong-evidence rows. 74 tests, build
+      clean. Self-critical: counts reflect the loaded top-60 (ordered strong→partial→weak), so
+      "Weak 0" here means weak rows fell outside the cap, not that none exist — a known LIMIT
+      artifact; a per-trust count from the aggregate would be more complete.
+
+- [x] **MD22 — accurate trust filter (fixes MD21 self-critique).** Trust filtering is now
+      server-side (`/api/facilities?trust=`), so each level's full set is reachable (no longer
+      capped out by a strong-heavy top-60), and the chip counts come from the state aggregate
+      (`region_gap` strong/partial/weak). Verified live: Bihar ICU chips All 101 / Strong 39 /
+      Partial 51 / Weak 11 (was Weak 0); clicking Weak loads all 11 weak facilities. +2 route
+      tests (trust bound / invalid ignored). 76 tests, build clean.
+
 > **Loop operating constraints (user, 2026-06-15):** be token-efficient — terse replies,
 > minimal tool calls, skip browser screenshots on low-risk (CSS/text) changes; reserve full
 > Playwright verification for risky map/UI work. Loop interval = 3 min. Context auto-compacts

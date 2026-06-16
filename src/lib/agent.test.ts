@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseQuestion, detectCapability, detectState, planSteps } from "./agent";
+import { parseQuestion, detectCapability, detectState, detectStates, planSteps } from "./agent";
 
 const STATES = ["Bihar", "Kerala", "Tamil Nadu", "Meghalaya", "Uttar Pradesh"];
 
@@ -25,6 +25,19 @@ describe("detectState", () => {
   });
 });
 
+describe("detectStates", () => {
+  it("finds multiple states in question order", () => {
+    expect(detectStates("compare Kerala and Bihar", STATES)).toEqual(["Kerala", "Bihar"]);
+  });
+  it("does not double-count a substring of a longer match", () => {
+    // "Bihar" only; ensure no phantom extra
+    expect(detectStates("gaps in Bihar", STATES)).toEqual(["Bihar"]);
+  });
+  it("returns [] when none mentioned", () => {
+    expect(detectStates("worst gaps nationally", STATES)).toEqual([]);
+  });
+});
+
 describe("parseQuestion", () => {
   it("gap_in_state when a state is named", () => {
     const p = parseQuestion("where are the ICU gaps in Bihar?", STATES);
@@ -40,6 +53,15 @@ describe("parseQuestion", () => {
     const p = parseQuestion("show ICU hospitals in Kerala", STATES);
     expect(p.intent).toBe("facility_evidence");
     expect(p.state).toBe("Kerala");
+  });
+  it("compare when two states + a compare cue are present", () => {
+    const p = parseQuestion("compare ICU in Bihar and Kerala", STATES);
+    expect(p.intent).toBe("compare");
+    expect(p.states).toEqual(["Bihar", "Kerala"]);
+  });
+  it("two states without a compare cue stays gap_in_state (first state)", () => {
+    const p = parseQuestion("ICU gaps in Bihar near Kerala border", STATES);
+    expect(p.intent).toBe("gap_in_state");
   });
 });
 
