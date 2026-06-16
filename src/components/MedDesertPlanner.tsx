@@ -88,6 +88,7 @@ export default function MedDesertPlanner() {
   const [highlightFac, setHighlightFac] = useState<string | null>(null);
   const hlRef = useRef<HTMLLIElement | null>(null);
   const [gapView, setGapView] = useState<"real" | "poor">("real");
+  const [kpiInfo, setKpiInfo] = useState<"realGaps" | "dataPoor" | "facilities" | "strong" | null>(null);
   // The right sidebar toggles between the chat ("agent") and everything else ("info").
   const [railView, setRailView] = useState<"agent" | "info">("info");
 
@@ -363,11 +364,35 @@ export default function MedDesertPlanner() {
             <div className="overlay overlay--tl kpis rise">
               <div className="kpis__cap">{capability.toUpperCase()} · India</div>
               <div className="kpis__row">
-                <div className="kpi"><span className="kpi__n kpi__n--gap">{kpis.realGaps}</span><span className="kpi__l">real gaps</span></div>
-                <div className="kpi"><span className="kpi__n">{kpis.dataPoor}</span><span className="kpi__l">data-poor</span></div>
-                <div className="kpi"><span className="kpi__n">{kpis.facilities.toLocaleString()}</span><span className="kpi__l">facilities</span></div>
-                <div className="kpi"><span className="kpi__n">{kpis.strong.toLocaleString()}</span><span className="kpi__l">strong evid.</span></div>
+                <button className="kpi kpi--btn" onClick={() => setKpiInfo(kpiInfo === "realGaps" ? null : "realGaps")}>
+                  <span className="kpi__n kpi__n--gap">{kpis.realGaps}</span><span className="kpi__l">real gaps</span>
+                </button>
+                <button className="kpi kpi--btn" onClick={() => setKpiInfo(kpiInfo === "dataPoor" ? null : "dataPoor")}>
+                  <span className="kpi__n">{kpis.dataPoor}</span><span className="kpi__l">data-poor</span>
+                </button>
+                <button className="kpi kpi--btn" onClick={() => setKpiInfo(kpiInfo === "facilities" ? null : "facilities")}>
+                  <span className="kpi__n">{kpis.facilities.toLocaleString()}</span><span className="kpi__l">facilities</span>
+                </button>
+                <button className="kpi kpi--btn" onClick={() => setKpiInfo(kpiInfo === "strong" ? null : "strong")}>
+                  <span className="kpi__n">{kpis.strong.toLocaleString()}</span><span className="kpi__l">strong evid.</span>
+                </button>
               </div>
+              {kpiInfo && (
+                <div className="kpi__popover">
+                  {kpiInfo === "realGaps" && <>
+                    <strong>{kpis.realGaps} real {capability.toUpperCase()} gaps</strong> — states where facility supply data and NFHS-5 health indicators are sufficient to confidently score the access gap. Gap score = NFHS-5 demand-side need × trust-weighted facility scarcity. A higher score means more urgent need relative to available care. These states are colored on the map from blue (covered) to red (severe gap).
+                  </>}
+                  {kpiInfo === "dataPoor" && <>
+                    <strong>{kpis.dataPoor} data-poor regions</strong> — states or territories without enough verifiable facility records or NFHS-5 indicators to compute a reliable gap score. They appear <em>grey</em> on the map. This does <strong>not</strong> mean no gap exists — the evidence is simply missing. These regions are candidates for data collection and field surveys, not safe assumptions of adequate care.
+                  </>}
+                  {kpiInfo === "facilities" && <>
+                    <strong>{kpis.facilities.toLocaleString()} total facilities</strong> — all {capability.toUpperCase()}-capable facilities on record across India for this capability, sourced from the Virtue Foundation dataset. Each facility carries a trust signal: <em>strong</em> (structured data + claim agree), <em>partial</em> (one source), or <em>weak</em> (free-text only). Only trust ≠ none are used in gap scoring.
+                  </>}
+                  {kpiInfo === "strong" && <>
+                    <strong>{kpis.strong.toLocaleString()} strong-evidence facilities</strong> — facilities where structured data and a direct capability claim both confirm {capability.toUpperCase()} capability. These carry the highest weight in the gap score formula. Regions with few strong-evidence facilities score lower supply even if many weak-evidence facilities exist, reflecting genuine uncertainty.
+                  </>}
+                </div>
+              )}
             </div>
           )}
           <div className="overlay overlay--bl legend rise">
@@ -422,6 +447,12 @@ export default function MedDesertPlanner() {
               {regions.length === 0 && <p className="note">Loading…</p>}
               {gapView === "real" ? (
                 <>
+                  <div className="insight-callout">
+                    <div className="insight-callout__num">{realGaps.length}</div>
+                    <div className="insight-callout__body">
+                      <strong>Real {capability.toUpperCase()} gaps</strong> — states where facility supply data and NFHS-5 health indicators are strong enough to confidently score the access gap. Gap score = NFHS-5 demand-side need × trust-weighted facility scarcity. The higher the score, the more urgent the gap. Click any state to drill in.
+                    </div>
+                  </div>
                   <div className="alloc">
                     {realGaps.slice(0, 8).map((r) => (
                       <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => selectState(r.state)}>
@@ -438,6 +469,12 @@ export default function MedDesertPlanner() {
                 </>
               ) : (
                 <>
+                  <div className="insight-callout insight-callout--poor">
+                    <div className="insight-callout__num">{dataPoorRegions.length}</div>
+                    <div className="insight-callout__body">
+                      <strong>Data-poor regions</strong> — states or territories without enough verifiable facility records or NFHS-5 need indicators to compute a reliable gap score. They appear <em>grey</em> on the map. This does <strong>not</strong> mean no gap exists — it means the evidence is missing. These are priority candidates for data collection and field surveys.
+                    </div>
+                  </div>
                   <div className="alloc">
                     {dataPoorRegions.slice(0, 10).map((r) => (
                       <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => selectState(r.state)}>
