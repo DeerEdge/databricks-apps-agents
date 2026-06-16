@@ -8,7 +8,7 @@ Every score is **cited to the underlying facility free-text**, uncertainty is sh
 per-facility **trust signals**, and planners can drill into facility records, **save planning
 scenarios**, and **shortlist facilities** (persisted via Lakebase).
 
-## Live app — judge access
+## Live app login
 
 **https://meddesert-7474653569700804.aws.databricksapps.com**
 
@@ -28,8 +28,6 @@ you can retrieve that code:
 4. Switch back to the Gmail tab, open the new email from Databricks, and copy the code.
 5. Paste it into the app and submit — the Medical Desert Planner loads.
 
-> If the code email is slow, refresh the Gmail inbox; it usually arrives within a few seconds.
-
 ### What to try
 
 Switch the clinical **capability**; click a **state** to see its care-gap score and the
@@ -39,9 +37,5 @@ persist via Lakebase, so reload to confirm they're still there.
 
 ## Stack
 
-Next.js (App Router, TypeScript) UI + API routes · MapLibre GL choropleth · Databricks
-Lakehouse (`workspace.meddesert`, via the SQL Statement Execution API) · **Lakebase** (Postgres)
-for persistence. Gap scoring is a **transparent, inspectable formula — not machine learning**.
-
-See `spec.md` (architecture + data model), `features.md` (feature tracker), and `CLAUDE.md`
-(engineering standards).
+Next.js (App Router, TypeScript) UI + API routes, MapLibre GL choropleth, Databricks
+Lakehouse, **Lakebase** for persistence. 
