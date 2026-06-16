@@ -4,7 +4,7 @@
   "private": true,
   "description": "Medical Desert Planner — India healthcare capability-gap analysis (Databricks hackathon)",
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "node scripts/dev.mjs",
     "dev:webpack": "next dev",
     "build": "next build",
     "start": "next start",

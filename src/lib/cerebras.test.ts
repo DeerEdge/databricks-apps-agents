@@ -56,7 +56,7 @@ describe("generateFacilityAnalysis", () => {
     const fetchCall = vi.mocked(fetch).mock.calls[0];
     expect(fetchCall[0]).toBe("https://api.cerebras.ai/v1/chat/completions");
     const body = JSON.parse(fetchCall[1]?.body as string);
-    expect(body.model).toBe("llama-3.3-70b");
+    expect(body.model).toBe("gpt-oss-120b");
     expect(body.messages).toHaveLength(2);
     expect(body.messages[1].content).toContain("dialysis");
     expect(body.messages[1].content).toContain("Nephrology, Urology");
@@ -71,7 +71,31 @@ describe("generateFacilityAnalysis", () => {
     await expect(generateFacilityAnalysis(mkCandidate("1"), "dialysis", mkEvidence())).rejects.toThrow("429");
   });
 
-  it("returns empty string when response has no content", async () => {
+  it("falls back to reasoning field when content is absent", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { reasoning: "Strong nephrology department confirmed." } }],
+      }),
+    } as Response);
+
+    const result = await generateFacilityAnalysis(mkCandidate("1"), "dialysis", mkEvidence());
+    expect(result).toBe("Strong nephrology department confirmed.");
+  });
+
+  it("prefers content over reasoning when both present", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Final answer.", reasoning: "Internal reasoning." } }],
+      }),
+    } as Response);
+
+    const result = await generateFacilityAnalysis(mkCandidate("1"), "dialysis", mkEvidence());
+    expect(result).toBe("Final answer.");
+  });
+
+  it("returns empty string when response has neither content nor reasoning", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       json: async () => ({ choices: [{ message: {} }] }),

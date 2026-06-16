@@ -1,9 +1,9 @@
 import type { ReferralCandidate, FieldEvidence } from "./referral";
 
-const DEFAULT_MODEL = "llama-3.3-70b";
-const MAX_TOKENS = 150;
+const DEFAULT_MODEL = "gpt-oss-120b";
+const MAX_TOKENS = 400;
 const TEMPERATURE = 0.3;
-const TIMEOUT_MS = 8_000;
+const TIMEOUT_MS = 10_000;
 
 interface CerebrasMessage {
   role: "system" | "user";
@@ -11,7 +11,7 @@ interface CerebrasMessage {
 }
 
 interface CerebrasChoice {
-  message?: { content?: string };
+  message?: { content?: string; reasoning?: string };
 }
 
 interface CerebrasResponse {
@@ -78,7 +78,8 @@ async function callCerebras(messages: CerebrasMessage[]): Promise<string> {
   }
 
   const data = (await res.json()) as CerebrasResponse;
-  return data.choices?.[0]?.message?.content?.trim() ?? "";
+  const msg = data.choices?.[0]?.message;
+  return (msg?.content ?? msg?.reasoning ?? "").trim();
 }
 
 export async function generateFacilityAnalysis(

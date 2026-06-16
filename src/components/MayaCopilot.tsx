@@ -171,6 +171,8 @@ export default function MayaCopilot() {
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [shortlistOpen, setShortlistOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
   const loadingIdxRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -305,6 +307,22 @@ export default function MayaCopilot() {
     }
   }
 
+  async function deleteShortlistItem(id: string) {
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/shortlist?id=${id}`, { method: "DELETE" });
+      const j = await res.json();
+      if (j.ok) {
+        setShortlist((prev) => prev.filter((item) => item.id !== id));
+      }
+    } catch {
+      // silent — item stays in list
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   function selectCandidate(candidate: ReferralCandidate, queryContext = "") {
     setSelectedCandidate(candidate);
     setSelectedQueryContext(queryContext);
@@ -360,10 +378,83 @@ export default function MayaCopilot() {
           </div>
         )}
 
-        {/* ── TOP BAR: branding only during active chat ── */}
+        {/* ── TOP BAR: branding + shortlist toggle ─────── */}
         {messages.length > 0 && (
           <div className="ref__top-bar">
             <span className="ref__top-brand">Maya</span>
+            <button
+              className="ref__sl-toggle"
+              onClick={() => setShortlistOpen((v) => !v)}
+              aria-label={shortlistOpen ? "Close shortlist" : "Open shortlist"}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              {shortlist.length > 0 && <span className="ref__sl-badge">{shortlist.length}</span>}
+            </button>
+          </div>
+        )}
+
+        {/* ── SHORTLIST DRAWER ───────────────────────────── */}
+        {shortlistOpen && (
+          <div className="ref__sl-drawer">
+            <div className="ref__sl-header">
+              <h3 className="ref__sl-title">Saved Referrals</h3>
+              <button className="ref__sl-close" onClick={() => setShortlistOpen(false)} aria-label="Close shortlist">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+            {shortlist.length === 0 ? (
+              <p className="ref__sl-empty">No saved referrals yet. Search for facilities and save them from the detail panel.</p>
+            ) : (
+              <ul className="ref__sl-list">
+                {shortlist.map((item) => (
+                  <li key={item.id} className="ref__sl-item">
+                    <button
+                      className="ref__sl-item-main"
+                      onClick={() => {
+                        selectCandidate({
+                          facilityId: item.facilityId,
+                          name: item.name,
+                          city: item.city,
+                          state: item.state,
+                          lat: item.lat,
+                          lon: item.lon,
+                          distanceKm: item.distanceKm,
+                          trust: item.trust as "strong" | "partial" | "weak",
+                          citation: item.citation,
+                          matchingEvidence: [],
+                          missingEvidence: [],
+                          explanation: "",
+                        }, item.queryContext);
+                        setShortlistOpen(false);
+                      }}
+                    >
+                      <span className="ref__sl-item-top">
+                        <span className="ref__sl-item-name">{item.name}</span>
+                        <span className={`trust trust--sm ${trustClass(item.trust)}`}>{matchLabel(item.trust)}</span>
+                      </span>
+                      <span className="ref__sl-item-meta">
+                        {item.distanceKm.toFixed(1)} km — {item.city || item.state}
+                      </span>
+                      {item.queryContext && (
+                        <span className="ref__sl-item-query">Searched: {item.queryContext}</span>
+                      )}
+                    </button>
+                    <button
+                      className="ref__sl-delete"
+                      onClick={() => deleteShortlistItem(item.id)}
+                      disabled={deletingId === item.id}
+                      aria-label={`Remove ${item.name} from shortlist`}
+                    >
+                      {deletingId === item.id ? (
+                        <span className="ask__spin" />
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -555,7 +646,7 @@ export default function MayaCopilot() {
                 </dl>
               )}
               {selectedCandidate.qualitativeAnalysis && (
-                <p className="ref__source-attr">Analysis generated by Cerebras Llama 3.3 70B from the above sources</p>
+                <p className="ref__source-attr">Analysis generated by Cerebras AI from the above sources</p>
               )}
             </section>
           )}
