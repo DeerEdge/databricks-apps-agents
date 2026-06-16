@@ -20,6 +20,10 @@ env:
     value: https://dbc-837977ce-19e0.cloud.databricks.com
   - name: DATABRICKS_WAREHOUSE_ID
     value: 6c9078480dee0864
+  # Maya referral agent → Mosaic AI Model Serving endpoint 'maya' (gpt-5-mini, tool-calling).
+  # Non-secret URL; authenticated with DATABRICKS_TOKEN (bearer) at call time.
+  - name: MOSAIC_AI_ENDPOINT
+    value: https://dbc-837977ce-19e0.cloud.databricks.com/serving-endpoints/maya/invocations
 
   # --- non-secret Lakebase infra ---
   - name: LAKEBASE_INSTANCE
