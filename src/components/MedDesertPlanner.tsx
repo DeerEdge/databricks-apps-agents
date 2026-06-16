@@ -419,11 +419,12 @@ export default function MedDesertPlanner() {
           </div>
 
           {railView === "agent" ? (
-            <AgentAsk onResult={(cap, state) => {
-              if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
-              // Sync the map focus but stay on the Agent tab so the answer stays visible.
-              setSelected(state);
-            }} />
+            <AgentAsk
+              onResult={(cap, state) => {
+                if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
+                setSelected(state);
+              }}
+            />
           ) : (
             <>
           <section className="panel">
