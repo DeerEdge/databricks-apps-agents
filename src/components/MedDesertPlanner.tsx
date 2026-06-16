@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
-import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, normalizeState, orderCapabilityProfile, type CapabilityGap } from "@/lib/meddesert";
+import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, orderCapabilityProfile, type CapabilityGap } from "@/lib/meddesert";
 import { explainGap, dataPoorReason } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
@@ -54,7 +54,6 @@ export default function MedDesertPlanner() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [regionMeta, setRegionMeta] = useState<QueryMeta | null>(null);
   const [facMeta, setFacMeta] = useState<QueryMeta | null>(null);
   const [showMath, setShowMath] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, { id: string; overrideTrust: string; note: string }>>({});
@@ -69,13 +68,15 @@ export default function MedDesertPlanner() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [highlightFac, setHighlightFac] = useState<string | null>(null);
   const hlRef = useRef<HTMLLIElement | null>(null);
-  const [pin, setPin] = useState("");
-  const [pinErr, setPinErr] = useState<string | null>(null);
-  const [pinBusy, setPinBusy] = useState(false);
-  const [highlightDistrict, setHighlightDistrict] = useState<string | null>(null);
-  const distRowRef = useRef<HTMLLIElement | null>(null);
-  const wantDistrictRef = useRef<string | null>(null);
   const [gapView, setGapView] = useState<"real" | "poor">("real");
+  // The right sidebar toggles between the chat ("agent") and everything else ("info").
+  const [railView, setRailView] = useState<"agent" | "info">("agent");
+
+  // Selecting a state populates the Info view — switch the sidebar to it so the detail shows.
+  function selectState(s: string | null) {
+    setSelected(s);
+    if (s) setRailView("info");
+  }
 
   // Resizable planner rail (the chatbot + panels column). null = use the CSS default width.
   const [railW, setRailW] = useState<number | null>(null);
@@ -130,7 +131,7 @@ export default function MedDesertPlanner() {
     setLoading(true);
     fetch(`/api/regions?capability=${capability}`)
       .then((r) => r.json())
-      .then((j) => { setRegions(j.ok ? j.regions : []); setRegionMeta(j.meta ?? null); })
+      .then((j) => setRegions(j.ok ? j.regions : []))
       .catch(() => setRegions([]))
       .finally(() => setLoading(false));
   }, [capability]);
@@ -187,15 +188,7 @@ export default function MedDesertPlanner() {
     const ctrl = new AbortController();
     fetch(`/api/districts?capability=${capability}&state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((j) => {
-        setDistricts(j.ok ? j.districts : []);
-        // If this selection came from a PIN lookup, open the breakdown + highlight that district.
-        if (wantDistrictRef.current) {
-          setShowDistricts(true);
-          setHighlightDistrict(wantDistrictRef.current);
-          wantDistrictRef.current = null;
-        }
-      })
+      .then((j) => setDistricts(j.ok ? j.districts : []))
       .catch(() => {});
     return () => ctrl.abort();
   }, [selected, capability]);
@@ -276,68 +269,32 @@ export default function MedDesertPlanner() {
     await loadScenarios();
   }
 
-  // Resolve a PIN → district + state, then jump the map there and highlight that district.
-  async function resolvePin(e: React.FormEvent) {
-    e.preventDefault();
-    setPinErr(null);
-    setPinBusy(true);
-    try {
-      const res = await fetch(`/api/pin?pin=${encodeURIComponent(pin)}`);
-      const j = await res.json();
-      if (!j.ok) throw new Error(j.error ?? "lookup failed");
-      // Match the directory state ("BIHAR") to a region's actual state string ("Bihar").
-      const region = regions.find((r) => normalizeState(r.state) === normalizeState(j.state));
-      if (!region) throw new Error(`No ${capability.toUpperCase()} coverage data for ${j.state}`);
-      wantDistrictRef.current = normalizeState(j.district);
-      if (region.state === selected) {
-        // Already on this state — the load effect won't refire, so open + highlight directly.
-        setShowDistricts(true);
-        setHighlightDistrict(wantDistrictRef.current);
-        wantDistrictRef.current = null;
-      } else {
-        setSelected(region.state);
-      }
-    } catch (e) {
-      setPinErr(e instanceof Error ? e.message : "lookup failed");
-    } finally {
-      setPinBusy(false);
-    }
-  }
-
-  // Scroll to + flash the matched district once the breakdown renders.
-  useEffect(() => {
-    if (!highlightDistrict || !showDistricts) return;
-    const t = setTimeout(() => {
-      distRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 200);
-    const clear = setTimeout(() => setHighlightDistrict(null), 2600);
-    return () => { clearTimeout(t); clearTimeout(clear); };
-  }, [highlightDistrict, showDistricts, districts]);
-
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/databricks-summit.png" alt="Databricks Data+AI Summit" className="brand__logo" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/india-emblem.png" alt="Government of India" className="brand__logo" />
+          <span className="brand__div" />
           <span className="brand__name">Medical Desert Planner</span>
-          <span className="brand__sub">India · care-gap analysis</span>
-        </div>
-        <div className="feeds">
-          <span className="pill">Virtue Foundation · NFHS-5</span>
-          <span className="pill pill--live"><span className="dot" /> Databricks</span>
         </div>
       </header>
-
-      <nav className="tabs">
-        {CAPABILITIES.map((c) => (
-          <button key={c.key} className={`tab${capability === c.key ? " tab--active" : ""}`}
-            onClick={() => { setCapability(c.key); setSelected(null); }}>{c.label}</button>
-        ))}
-      </nav>
 
       <main className="stage">
         <section className="map-col">
           {loading && <div className="map-loading"><span className="map-loading__spin" />Loading {capability} coverage…<span className="map-loading__sub">querying Databricks</span></div>}
-          <GapMap regions={regions} facilities={facilities} onSelect={setSelected} onFacilityClick={setHighlightFac} />
+          <GapMap regions={regions} facilities={facilities} onSelect={selectState} onFacilityClick={setHighlightFac} />
+
+          <nav className="capfloat" aria-label="Clinical capability">
+            {CAPABILITIES.map((c) => (
+              <button key={c.key} className={`capfloat__btn${capability === c.key ? " capfloat__btn--on" : ""}`}
+                onClick={() => { setCapability(c.key); setSelected(null); }} aria-current={capability === c.key}>
+                {c.label}
+              </button>
+            ))}
+          </nav>
           {!loading && regions.length > 0 && (
             <div className="overlay overlay--tl kpis rise">
               <div className="kpis__cap">{capability.toUpperCase()} · India</div>
@@ -364,29 +321,26 @@ export default function MedDesertPlanner() {
                 </div>
               </div>
             )}
-            {regionMeta && (
-              <div className="obs obs--legend">
-                <span className="obs__dot" /> {regionMeta.engine} · {regionMeta.rows} regions · {regionMeta.ms}ms · <code>{regionMeta.source}</code>
-              </div>
-            )}
           </div>
         </section>
 
         <aside className="rail" style={railW ? { width: railW } : undefined}>
           <div className="rail__resize" onMouseDown={startRailResize} role="separator"
             aria-orientation="vertical" aria-label="Resize panel" title="Drag to resize" />
-          <form className="pin" onSubmit={resolvePin}>
-            <input className="pin__input" value={pin} onChange={(e) => { setPin(e.target.value); setPinErr(null); }}
-              placeholder="Jump to a PIN code (e.g. 812001)" inputMode="numeric" maxLength={12} aria-label="Find by PIN code" />
-            <button className="pin__btn" disabled={pinBusy}>{pinBusy ? "…" : "Locate"}</button>
-          </form>
-          {pinErr && <p className="pin__err">{pinErr}</p>}
+          <div className="railtog" role="tablist" aria-label="Sidebar view">
+            <button role="tab" aria-selected={railView === "agent"} className={`railtog__btn${railView === "agent" ? " railtog__btn--on" : ""}`}
+              onClick={() => setRailView("agent")}>Agent</button>
+            <button role="tab" aria-selected={railView === "info"} className={`railtog__btn${railView === "info" ? " railtog__btn--on" : ""}`}
+              onClick={() => setRailView("info")}>Info</button>
+          </div>
 
-          <AgentAsk onResult={(cap, state) => {
-            if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
-            setSelected(state);
-          }} />
-
+          {railView === "agent" ? (
+            <AgentAsk onResult={(cap, state) => {
+              if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
+              selectState(state);
+            }} />
+          ) : (
+            <>
           <section className="panel">
             <div className="panel__head">
               <div className="panel__eyebrow">{capability.toUpperCase()} · India</div>
@@ -405,7 +359,7 @@ export default function MedDesertPlanner() {
                 <>
                   <div className="alloc">
                     {realGaps.slice(0, 8).map((r) => (
-                      <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => setSelected(r.state)}>
+                      <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => selectState(r.state)}>
                         <div className="alloc__row__top">
                           <span className="alloc__county">{r.state}</span>
                           <span className="alloc__amt">{r.gapScore.toFixed(2)}</span>
@@ -421,7 +375,7 @@ export default function MedDesertPlanner() {
                 <>
                   <div className="alloc">
                     {dataPoorRegions.slice(0, 10).map((r) => (
-                      <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => setSelected(r.state)}>
+                      <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => selectState(r.state)}>
                         <div className="alloc__row__top">
                           <span className="alloc__county">{r.state}</span>
                           <span className="dp-tag">data-poor</span>
@@ -444,8 +398,8 @@ export default function MedDesertPlanner() {
               </div>
               <div className="panel__body">
                 <ol className="guide__steps">
-                  <li><b>Pick a capability</b> above (ICU, maternity, emergency, oncology, trauma, NICU).</li>
-                  <li><b>Choose a place</b> — click a state on the map, a ranked gap, or enter a PIN code.</li>
+                  <li><b>Pick a capability</b> from the list on the left (ICU, maternity, emergency, oncology, trauma, NICU).</li>
+                  <li><b>Choose a place</b> — click a state on the map or a ranked gap.</li>
                   <li><b>Inspect the evidence</b> — every score cites the facility&apos;s own text, with a trust signal.</li>
                   <li><b>Save a scenario</b> — persist a shortlist + note, or export a cited brief.</li>
                 </ol>
@@ -529,11 +483,6 @@ export default function MedDesertPlanner() {
                 {districts.length > 0 && (() => {
                   const realDist = districts.filter((d) => !d.dataPoor);
                   const top = realDist.slice(0, 12);
-                  // Ensure a PIN-highlighted district is shown even if outside the top-12 / data-poor.
-                  const pinned = highlightDistrict && !top.some((d) => normalizeState(d.district) === highlightDistrict)
-                    ? districts.find((d) => normalizeState(d.district) === highlightDistrict)
-                    : null;
-                  const shown = pinned ? [...top, pinned] : top;
                   const maxGap = top[0]?.gapScore || 1;
                   return (
                     <div className="dist">
@@ -543,16 +492,13 @@ export default function MedDesertPlanner() {
                       {showDistricts && (
                         <>
                           <ul className="dist__list">
-                            {shown.map((d) => {
-                              const hl = highlightDistrict === normalizeState(d.district);
-                              return (
-                              <li key={d.district} className={`dist__row${hl ? " dist__row--hl" : ""}${d.dataPoor ? " dist__row--dp" : ""}`} ref={hl ? distRowRef : null}>
+                            {top.map((d) => (
+                              <li key={d.district} className={`dist__row${d.dataPoor ? " dist__row--dp" : ""}`}>
                                 <span className="dist__name">{d.district}{d.dataPoor ? " · data-poor" : ""}</span>
                                 <span className="dist__bar"><span className="dist__fill" style={{ width: `${Math.round((d.gapScore / maxGap) * 100)}%`, background: gapColor(d.gapScore) }} /></span>
                                 <span className="dist__val">{d.strong}s · {d.nFacilities}f</span>
                               </li>
-                              );
-                            })}
+                            ))}
                           </ul>
                           <p className="note">Facility supply mapped to district via PIN postcode × NFHS-5 district need. Gap = need × scarcity within {sel.state}. {districts.length - realDist.length} districts are data-poor (no NFHS match or &lt;5 facilities) and excluded from the ranking.</p>
                         </>
@@ -663,7 +609,7 @@ export default function MedDesertPlanner() {
                   {scenarios.map((s) => (
                     <li key={s.id} className="scen__item">
                       <div className="scen__top">
-                        <button className="scen__title" onClick={() => { setCapability(s.capability as CapabilityKey); setSelected(s.state); }}>
+                        <button className="scen__title" onClick={() => { setCapability(s.capability as CapabilityKey); selectState(s.state); }}>
                           {s.state} · {s.capability.toUpperCase()}
                         </button>
                         <div className="scen__actions">
@@ -689,6 +635,8 @@ export default function MedDesertPlanner() {
                 </ul>
               </div>
             </section>
+          )}
+            </>
           )}
         </aside>
       </main>
