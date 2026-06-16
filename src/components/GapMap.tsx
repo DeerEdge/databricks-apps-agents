@@ -173,11 +173,6 @@ export default function GapMap({
         const imgHtml = p.imageUrl
           ? `<div class="pop__img-wrap">
                <img class="pop__img" src="${esc(p.imageUrl)}" alt="${esc(p.name)}" loading="lazy" onerror="this.parentElement.style.display='none'" />
-               <div class="pop__img-meta">
-                 ${p.hasIcuImage ? '<span class="pop__img-tag pop__img-tag--icu">ICU verified</span>' : '<span class="pop__img-tag">hospital image</span>'}
-                 ${p.imageConfidence ? `<span class="pop__img-conf">${Math.round(Number(p.imageConfidence) * 100)}% confidence</span>` : ""}
-                 ${Number(p.galleryCount) > 1 ? `<span class="pop__img-gallery">${Number(p.galleryCount)} images</span>` : ""}
-               </div>
              </div>`
           : "";
         const textHtml = `<div class="pop__body"><div class="pop__name">${esc(p.name)}</div><span class="pop__tag">${esc(p.trustLabel)}</span>${p.citation ? `<div class="pop__cite">"${esc(p.citation)}"</div>` : ""}</div>`;
