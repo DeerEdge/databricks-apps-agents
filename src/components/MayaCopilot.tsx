@@ -186,7 +186,9 @@ export default function MayaCopilot() {
     try {
       const res = await fetch("/api/shortlist");
       const j = await res.json();
-      setShortlist(j.ok ? j.items : []);
+      const items = j.ok ? j.items : [];
+      setShortlist(items);
+      window.dispatchEvent(new CustomEvent("maya-shortlist-updated", { detail: { count: items.length } }));
     } catch {
       setShortlist([]);
     }
@@ -195,6 +197,7 @@ export default function MayaCopilot() {
   useEffect(() => {
     loadShortlist();
   }, []);
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -300,7 +303,11 @@ export default function MayaCopilot() {
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.error ?? "save failed");
-      setShortlist((prev) => [j.item, ...prev]);
+      setShortlist((prev) => {
+        const next = [j.item, ...prev];
+        window.dispatchEvent(new CustomEvent("maya-shortlist-updated", { detail: { count: next.length } }));
+        return next;
+      });
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "save failed");
     } finally {
@@ -315,7 +322,11 @@ export default function MayaCopilot() {
       const res = await fetch(`/api/shortlist?id=${id}`, { method: "DELETE" });
       const j = await res.json();
       if (j.ok) {
-        setShortlist((prev) => prev.filter((item) => item.id !== id));
+        setShortlist((prev) => {
+          const next = prev.filter((item) => item.id !== id);
+          window.dispatchEvent(new CustomEvent("maya-shortlist-updated", { detail: { count: next.length } }));
+          return next;
+        });
       }
     } catch {
       // silent — item stays in list
@@ -337,13 +348,21 @@ export default function MayaCopilot() {
       {/* navigation header */}
       <div className="ref__peek-header">
         <div className="brand">
-          <Link href="/" className="brand__name brand__name--dim">MedIndia</Link>
+          <Link href="/" className="brand__name">MedIndia</Link>
           <div className="brand__div" />
           <nav className="brand__subnav">
             <Link href="/" className="brand__subnav-link">Home</Link>
             <span className="brand__subnav-link brand__subnav-link--active">Maya</span>
           </nav>
         </div>
+        <button
+          className="ref__sl-toggle"
+          onClick={() => setShortlistOpen((v) => !v)}
+          aria-label={shortlistOpen ? "Close shortlist" : "Open shortlist"}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          {shortlist.length > 0 && <span className="ref__sl-badge">{shortlist.length}</span>}
+        </button>
       </div>
       <div className="ref__body">
       <section className="ref__chat" aria-label="Maya referral chat">
@@ -357,9 +376,6 @@ export default function MayaCopilot() {
               className="ref__hero-form"
               onSubmit={(e) => { e.preventDefault(); stopTypewriter(); askMaya(input); }}
             >
-              <button type="button" className="ref__attach" aria-label="Attach file" tabIndex={-1}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-              </button>
               <input
                 className="ref__hero-input"
                 value={input}
@@ -391,20 +407,6 @@ export default function MayaCopilot() {
           </div>
         )}
 
-        {/* ── TOP BAR: branding + shortlist toggle ─────── */}
-        {messages.length > 0 && (
-          <div className="ref__top-bar">
-            <span className="ref__top-brand">Maya</span>
-            <button
-              className="ref__sl-toggle"
-              onClick={() => setShortlistOpen((v) => !v)}
-              aria-label={shortlistOpen ? "Close shortlist" : "Open shortlist"}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-              {shortlist.length > 0 && <span className="ref__sl-badge">{shortlist.length}</span>}
-            </button>
-          </div>
-        )}
 
         {/* ── SHORTLIST DRAWER ───────────────────────────── */}
         {shortlistOpen && (
@@ -558,9 +560,6 @@ export default function MayaCopilot() {
               className="ref__hero-form"
               onSubmit={(e) => { e.preventDefault(); askMaya(input); }}
             >
-              <button type="button" className="ref__attach" aria-label="Attach file" tabIndex={-1}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-              </button>
               <input
                 className="ref__hero-input"
                 value={input}
@@ -643,10 +642,7 @@ export default function MayaCopilot() {
               {/* Internal Data */}
               {(selectedCandidate.citation || selectedCandidate.fieldEvidence) && (
                 <div className="ref__src-group">
-                  <div className="ref__src-group-label">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                    Internal Data
-                  </div>
+                  <div className="ref__src-group-label">Internal Data</div>
                   {selectedCandidate.citation && (
                     <blockquote className="fac__cite">&ldquo;{selectedCandidate.citation}&rdquo;</blockquote>
                   )}
@@ -675,10 +671,7 @@ export default function MayaCopilot() {
               {/* External References */}
               {selectedCandidate.externalSources && selectedCandidate.externalSources.length > 0 && (
                 <div className="ref__src-group">
-                  <div className="ref__src-group-label">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    External References
-                  </div>
+                  <div className="ref__src-group-label">External References</div>
                   <ul className="ref__ext-links">
                     {selectedCandidate.externalSources.map((src, i) => (
                       <li key={i}>
