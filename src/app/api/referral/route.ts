@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { runSql } from "@/lib/databricks";
-import { rankCandidates, computeRankReasons, type ReferralCandidate, type FieldEvidence } from "@/lib/referral";
+import { rankCandidates, computeRankReasons, type ReferralCandidate, type FieldEvidence, type ExternalSource } from "@/lib/referral";
 import { generateBatchAnalysis } from "@/lib/cerebras";
 
 export const dynamic = "force-dynamic";
@@ -351,6 +351,15 @@ function computeExplanation(row: Record<string, unknown>, keyword: string, trust
   return "Weak or indirect mention only. Verify before referring.";
 }
 
+function generateExternalSources(name: string, city: string, state: string, keyword: string): ExternalSource[] {
+  const q = encodeURIComponent(`${name} ${city || state} ${keyword} hospital India`);
+  return [
+    { name: "Google: " + name, url: `https://www.google.com/search?q=${q}` },
+    { name: "NHM Facility Directory", url: "https://nhm.gov.in/index4.php?lang=1&level=0&linkid=150&lid=171" },
+    { name: "NFHS-5 District Health Data", url: "https://rchiips.org/nfhs/NFHS-5_FCTS/FactSheets.shtml" },
+  ];
+}
+
 function cleanCandidate(c: Partial<ReferralCandidate>): ReferralCandidate | null {
   const lat = finiteNumber(c.lat);
   const lon = finiteNumber(c.lon);
@@ -373,6 +382,7 @@ function cleanCandidate(c: Partial<ReferralCandidate>): ReferralCandidate | null
     fieldEvidence: c.fieldEvidence,
     qualitativeAnalysis: c.qualitativeAnalysis ? String(c.qualitativeAnalysis) : undefined,
     rankReason: c.rankReason ? String(c.rankReason) : undefined,
+    externalSources: Array.isArray(c.externalSources) ? c.externalSources : undefined,
   };
 }
 
@@ -413,11 +423,14 @@ async function runCapabilitySearch(capability: string, lat: number, lon: number,
     const missing = computeMissingEvidence(rowForEvidence, capability);
     const explanation = computeExplanation(rowForEvidence, capability, trust, fieldEv);
     const matchEv = buildMatchingEvidence(fieldEv);
+    const name = String(r.name ?? "");
+    const city = String(r.city ?? "");
+    const state = String(r.state ?? "");
     return cleanCandidate({
       facilityId: String(r.facility_id ?? ""),
-      name: String(r.name ?? ""),
-      city: String(r.city ?? ""),
-      state: String(r.state ?? ""),
+      name,
+      city,
+      state,
       lat: Number(r.latitude),
       lon: Number(r.longitude),
       trust,
@@ -427,6 +440,7 @@ async function runCapabilitySearch(capability: string, lat: number, lon: number,
       missingEvidence: missing,
       explanation,
       fieldEvidence: fieldEv,
+      externalSources: generateExternalSources(name, city, state, capability),
     });
   }).filter((c): c is ReferralCandidate => c !== null);
 }
@@ -501,11 +515,14 @@ async function runKeywordSearch(keyword: string, lat: number, lon: number, radiu
     const missing = computeMissingEvidence(r, keyword);
     const explanation = computeExplanation(r, keyword, trust, fieldEv);
     const matchEv = buildMatchingEvidence(fieldEv);
+    const name = String(r.name ?? "");
+    const city = String(r.city ?? "");
+    const state = String(r.state ?? "");
     return cleanCandidate({
       facilityId: String(r.unique_id ?? ""),
-      name: String(r.name ?? ""),
-      city: String(r.city ?? ""),
-      state: String(r.state ?? ""),
+      name,
+      city,
+      state,
       lat: Number(r.latitude),
       lon: Number(r.longitude),
       trust,
@@ -515,6 +532,7 @@ async function runKeywordSearch(keyword: string, lat: number, lon: number, radiu
       missingEvidence: missing,
       explanation,
       fieldEvidence: fieldEv,
+      externalSources: generateExternalSources(name, city, state, keyword),
     });
   }).filter((c): c is ReferralCandidate => c !== null);
 }

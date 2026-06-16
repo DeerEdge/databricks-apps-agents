@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Fraunces, Public_Sans, IBM_Plex_Mono } from "next/font/google";
-import NavBar from "@/components/NavBar";
 import "./globals.css";
 
 const display = Fraunces({
@@ -34,7 +33,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
-        <NavBar />
         {children}
       </body>
     </html>

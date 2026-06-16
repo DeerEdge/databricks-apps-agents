@@ -10,6 +10,11 @@ export interface FieldEvidence {
   description: string | null;
 }
 
+export interface ExternalSource {
+  name: string;
+  url: string;
+}
+
 export interface ReferralCandidate {
   facilityId: string;
   name: string;
@@ -26,6 +31,7 @@ export interface ReferralCandidate {
   fieldEvidence?: FieldEvidence;
   qualitativeAnalysis?: string;
   rankReason?: string;
+  externalSources?: ExternalSource[];
 }
 
 export interface ReferralResult {

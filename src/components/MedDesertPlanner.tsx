@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
 import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, orderCapabilityProfile, normalizeState, type CapabilityGap } from "@/lib/meddesert";
@@ -339,6 +340,11 @@ export default function MedDesertPlanner() {
       <header className="topbar">
         <div className="brand">
           <span className="brand__name">MedIndia</span>
+          <div className="brand__div" />
+          <nav className="brand__subnav">
+            <span className="brand__subnav-link brand__subnav-link--active">Home</span>
+            <Link href="/referral" className="brand__subnav-link">Maya</Link>
+          </nav>
         </div>
       </header>
 
