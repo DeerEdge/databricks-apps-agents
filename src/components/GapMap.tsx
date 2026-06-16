@@ -136,6 +136,11 @@ export default function GapMap({
 
       const popup = new maplibregl.Popup({ closeButton: false, className: "map-popup", offset: 8 });
       map.on("mousemove", "state-fill", (e) => {
+        // Hide state label when a facility dot is under the cursor
+        if (map.queryRenderedFeatures(e.point, { layers: ["facility-pts"] }).length > 0) {
+          popup.remove();
+          return;
+        }
         const p = e.features?.[0]?.properties as Record<string, unknown> | undefined;
         if (!p) return;
         map.getCanvas().style.cursor = "pointer";
@@ -161,6 +166,7 @@ export default function GapMap({
       });
       const fpop = new maplibregl.Popup({ closeButton: false, className: "map-popup", offset: 8 });
       map.on("mouseenter", "facility-pts", (e) => {
+        popup.remove(); // dismiss state label when hovering a facility
         const p = e.features?.[0]?.properties as Record<string, unknown> | undefined;
         if (!p) return;
         map.getCanvas().style.cursor = "pointer";
