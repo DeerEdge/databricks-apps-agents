@@ -51,9 +51,9 @@ describe("AgentChart", () => {
   it("abbreviates axis labels and keeps the full name in a hover <title>", () => {
     const { container } = render(<AgentChart spec={barSpec} />);
     const ticks = Array.from(container.querySelectorAll("text.ask__tick"));
-    const meghalaya = ticks.find((t) => t.querySelector("title")?.textContent === "Meghalaya");
+    const meghalaya = ticks.find((t) => (t as Element).querySelector("title")?.textContent === "Meghalaya");
     expect(meghalaya).toBeDefined();
-    expect(meghalaya?.textContent).toContain("ML"); // abbreviated label + title text
+    expect((meghalaya as Element | undefined)?.textContent).toContain("ML"); // abbreviated label + title text
   });
 
   it("renders nothing for a null spec", () => {
