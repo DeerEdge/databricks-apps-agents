@@ -31,7 +31,7 @@
   --shadow-sm: 0 1px 2px rgba(33, 31, 26, 0.06);
   --shadow:    0 8px 28px -12px rgba(33, 31, 26, 0.30), 0 2px 6px rgba(33, 31, 26, 0.06);
 
-  --rail-w: 376px;
+  --rail-w: 460px;
   --radius: 5px;
 
   --font-display: var(--font-fraunces), Georgia, serif;
@@ -366,6 +366,7 @@ body::after {
 .map-col > .map { position: absolute; inset: 0; height: 100%; width: 100%; }
 
 .rail {
+  position: relative;
   width: var(--rail-w);
   flex-shrink: 0;
   border-left: 1px solid var(--hair-strong);
@@ -376,6 +377,16 @@ body::after {
   padding: 16px;
   overflow-y: auto;
 }
+/* Drag handle on the rail's left edge — widen/narrow the whole planner panel. */
+.rail__resize {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 7px; margin-left: -3px;
+  cursor: col-resize; z-index: 5; touch-action: none;
+}
+.rail__resize::before {
+  content: ""; position: absolute; left: 3px; top: 0; bottom: 0; width: 1px;
+  background: transparent; transition: background 0.15s;
+}
+.rail__resize:hover::before, .rail__resize--active::before { background: var(--accent); }
 
 /* ── top bar ────────────────────────────────────────── */
 .topbar {
@@ -1130,12 +1141,15 @@ select.input {
 .obs--legend { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hair); }
 
 /* ── planner agent (MD6) — clean ask UI ──────────────── */
+/* Chatbot-only secondary color: re-scope --accent to Databricks red so every .ask__* element
+   (send button, chips, step badges, focus ring) recolors here without touching the rest of the app. */
+.agent { --accent: #ff3621; }
 .ask__form {
   display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px;
   border: 1px solid var(--hair-strong); border-radius: 10px; background: var(--paper);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.ask__form:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(30,96,145,0.12); }
+.ask__form:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,54,33,0.12); }
 .ask__input {
   flex: 1; min-width: 0; border: none; background: none; font-family: var(--font-sans);
   font-size: 13.5px; color: var(--ink); padding: 8px 0;
@@ -1147,7 +1161,7 @@ select.input {
   background: var(--accent); color: #f4f8fb; font-size: 16px; line-height: 1;
   display: flex; align-items: center; justify-content: center; transition: background 0.15s;
 }
-.ask__send:hover:not(:disabled) { background: #185179; }
+.ask__send:hover:not(:disabled) { background: #cc2915; }
 .ask__send:disabled { opacity: 0.4; cursor: default; }
 .ask__spin {
   width: 14px; height: 14px; border-radius: 50%;
@@ -1187,15 +1201,36 @@ select.input {
 
 .ask__answer {
   margin-top: 12px; padding: 12px 14px; border-radius: 10px;
-  background: #f6f9fc; border: 1px solid #d8e4f0;
+  background: #fff7f6; border: 1px solid #f4d6d1;
 }
+.ask__chart { margin: 12px 0 2px; }
+.ask__chart .recharts-text { font-family: var(--font-sans); }
+.ask__tick { cursor: help; } /* hover an abbreviated axis label to see the full name */
+
+/* continue / follow-up an existing Genie conversation */
+.ask__continue {
+  margin-top: 11px; display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--accent);
+}
+.ask__continue:hover { text-decoration: underline; }
+.ask__followup {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 6px 10px;
+  border: 1px solid var(--hair); border-radius: 8px; background: var(--paper-sunk);
+  font-size: 11.5px; color: var(--ink-2);
+}
+.ask__followup-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.ask__followup-new {
+  margin-left: auto; background: none; border: none; cursor: pointer; padding: 0;
+  font-family: var(--font-sans); font-size: 11px; color: var(--ink-3);
+}
+.ask__followup-new:hover { color: var(--accent); }
 .ask__text { font-size: 13.5px; line-height: 1.6; color: var(--ink); }
 .ask__text strong { color: #9b2226; font-weight: 600; }
 .ask__cites { list-style: none; margin: 11px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
 .ask__cite { padding: 8px 10px; border: 1px solid var(--hair); border-radius: 8px; background: var(--paper); }
 .ask__cite-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
 .ask__cite-name { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.ask__answer .obs { margin-top: 10px; }
 
 /* ── planner trust overrides (human-in-the-loop) ─────── */
 .ov { margin-top: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
