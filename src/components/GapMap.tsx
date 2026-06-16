@@ -34,6 +34,11 @@ export interface FacilityPoint {
   citation: string;
   lat: number | null;
   lon: number | null;
+  // Image enrichment fields (populated when pipeline has run)
+  imageUrl?: string | null;
+  imageConfidence?: number | null;
+  hasIcuImage?: boolean;
+  galleryCount?: number;
 }
 
 export default function GapMap({
@@ -65,7 +70,17 @@ export default function GapMap({
         .map((f) => ({
           type: "Feature",
           geometry: { type: "Point", coordinates: [f.lon as number, f.lat as number] },
-          properties: { name: f.name, trust: f.trust, trustLabel: trustLabel(f.trust), citation: f.citation, color: trustColor(f.trust) },
+          properties: {
+            name: f.name,
+            trust: f.trust,
+            trustLabel: trustLabel(f.trust),
+            citation: f.citation,
+            color: trustColor(f.trust),
+            imageUrl: f.imageUrl ?? null,
+            imageConfidence: f.imageConfidence ?? null,
+            hasIcuImage: f.hasIcuImage ?? false,
+            galleryCount: f.galleryCount ?? 0,
+          },
         })),
     };
   }
@@ -149,8 +164,19 @@ export default function GapMap({
         const p = e.features?.[0]?.properties as Record<string, unknown> | undefined;
         if (!p) return;
         map.getCanvas().style.cursor = "pointer";
+        const imgHtml = p.imageUrl
+          ? `<div class="pop__img-wrap">
+               <img class="pop__img" src="${esc(p.imageUrl)}" alt="${esc(p.name)}" loading="lazy" onerror="this.parentElement.style.display='none'" />
+               <div class="pop__img-meta">
+                 ${p.hasIcuImage ? '<span class="pop__img-tag pop__img-tag--icu">ICU verified</span>' : '<span class="pop__img-tag">hospital image</span>'}
+                 ${p.imageConfidence ? `<span class="pop__img-conf">${Math.round(Number(p.imageConfidence) * 100)}% confidence</span>` : ""}
+                 ${Number(p.galleryCount) > 1 ? `<span class="pop__img-gallery">${Number(p.galleryCount)} images</span>` : ""}
+               </div>
+             </div>`
+          : "";
+        const textHtml = `<div class="pop__body"><div class="pop__name">${esc(p.name)}</div><span class="pop__tag">${esc(p.trustLabel)}</span>${p.citation ? `<div class="pop__cite">"${esc(p.citation)}"</div>` : ""}</div>`;
         fpop.setLngLat((e.features![0].geometry as GeoJSON.Point).coordinates as [number, number]).setHTML(
-          `<div class="pop__name">${esc(p.name)}</div><span class="pop__tag">${esc(p.trustLabel)}</span>${p.citation ? `<div class="pop__cite">“${esc(p.citation)}”</div>` : ""}`
+          `${imgHtml}${textHtml}`
         ).addTo(map);
       });
       map.on("mouseleave", "facility-pts", () => { map.getCanvas().style.cursor = ""; fpop.remove(); });

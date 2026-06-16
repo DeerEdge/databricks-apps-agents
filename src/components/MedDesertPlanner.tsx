@@ -29,6 +29,21 @@ interface Facility {
   claim: boolean;
   lat: number | null;
   lon: number | null;
+  // Merged from /api/facility-images after facilities load
+  imageUrl?: string | null;
+  imageConfidence?: number | null;
+  hasIcuImage?: boolean;
+  galleryCount?: number;
+}
+
+interface FacilityImageAsset {
+  hospitalName: string;
+  city: string;
+  primaryImageUrl: string | null;
+  imageAvailable: boolean;
+  confidence: number;
+  galleryCount: number;
+  hasIcuImage: boolean;
 }
 
 interface Scenario {
@@ -139,18 +154,48 @@ export default function MedDesertPlanner() {
       .finally(() => setLoading(false));
   }, [capability]);
 
-  // Drill-in: load the facility records (with cited evidence) behind the selected state.
-  // Trust filter is applied server-side so each level's full set is reachable.
+  // Drill-in: load facility records + image assets in parallel, then merge them.
+  // Image assets come from the enrichment pipeline (workspace.meddesert.hospital_map_assets).
+  // If the pipeline hasn't run yet the image call returns [] and facilities render without images.
   useEffect(() => {
     if (!selected) { setFacilities([]); return; }
     setFacLoading(true);
     const ctrl = new AbortController();
     const tq = trustFilter === "all" ? "" : `&trust=${trustFilter}`;
-    fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}${tq}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((j) => { setFacilities(j.ok ? j.facilities : []); setFacMeta(j.meta ?? null); })
+
+    Promise.all([
+      fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}${tq}`, { signal: ctrl.signal })
+        .then((r) => r.json()),
+      fetch(`/api/facility-images?state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+        .then((r) => r.json())
+        .catch(() => ({ ok: false, assets: [] })),
+    ])
+      .then(([facJson, imgJson]) => {
+        if (ctrl.signal.aborted) return;
+        const rawFacilities: Facility[] = facJson.ok ? facJson.facilities : [];
+        setFacMeta(facJson.meta ?? null);
+
+        // Build a lookup by hospital name (the natural join key between tables)
+        const imgMap = new Map<string, FacilityImageAsset>();
+        if (imgJson.ok && Array.isArray(imgJson.assets)) {
+          for (const a of imgJson.assets as FacilityImageAsset[]) {
+            imgMap.set(a.hospitalName, a);
+          }
+        }
+
+        setFacilities(
+          rawFacilities.map((f) => {
+            const img = imgMap.get(f.name);
+            return img
+              ? { ...f, imageUrl: img.primaryImageUrl, imageConfidence: img.confidence,
+                  hasIcuImage: img.hasIcuImage, galleryCount: img.galleryCount }
+              : f;
+          })
+        );
+      })
       .catch(() => { if (!ctrl.signal.aborted) setFacilities([]); })
       .finally(() => { if (!ctrl.signal.aborted) setFacLoading(false); });
+
     return () => ctrl.abort();
   }, [selected, capability, trustFilter]);
 
@@ -342,7 +387,9 @@ export default function MedDesertPlanner() {
         </div>
         <div className="feeds">
           <span className="pill">Virtue Foundation · NFHS-5</span>
-          <span className="pill pill--live"><span className="dot" /> Databricks</span>
+          <span className="pill pill--databricks">
+            <img src="/databricks-logo.svg" alt="Databricks" height="16" style={{ display: "block" }} />
+          </span>
         </div>
       </header>
 
