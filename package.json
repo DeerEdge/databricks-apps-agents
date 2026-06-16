@@ -4,24 +4,31 @@
   "private": true,
   "description": "Medical Desert Planner — India healthcare capability-gap analysis (Databricks hackathon)",
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "dev:webpack": "next dev",
+    "dev": "next dev",
+    "dev:webpack": "next dev --turbopack=false",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "maplibre-gl": "^4.7.1",
-    "next": "^15.3.0",
+    "next": "^15.3.3",
     "pg": "^8.21.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-is": "^19.1.0",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^6.0.2",
+    "jsdom": "^29.1.1",
     "typescript": "^5.7.2",
     "vitest": "^4.1.9"
   }

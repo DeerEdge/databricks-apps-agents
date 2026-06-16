@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import GapMap, { type Region } from "@/components/GapMap";
 import AgentAsk from "@/components/AgentAsk";
-import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor } from "@/lib/meddesert";
-import { explainGap } from "@/lib/reasoning";
+import { CAPABILITIES, type CapabilityKey, gapColor, trustLabel, trustClass, trustColor, orderCapabilityProfile, normalizeState, type CapabilityGap } from "@/lib/meddesert";
+import { explainGap, dataPoorReason } from "@/lib/reasoning";
 import { scenarioBrief } from "@/lib/brief";
 
 interface QueryMeta { ms: number; rows: number; source: string; engine: string }
@@ -29,6 +29,21 @@ interface Facility {
   claim: boolean;
   lat: number | null;
   lon: number | null;
+  // Merged from /api/facility-images after facilities load
+  imageUrl?: string | null;
+  imageConfidence?: number | null;
+  hasIcuImage?: boolean;
+  galleryCount?: number;
+}
+
+interface FacilityImageAsset {
+  hospitalName: string;
+  city: string;
+  primaryImageUrl: string | null;
+  imageAvailable: boolean;
+  confidence: number;
+  galleryCount: number;
+  hasIcuImage: boolean;
 }
 
 interface Scenario {
@@ -54,7 +69,6 @@ export default function MedDesertPlanner() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [regionMeta, setRegionMeta] = useState<QueryMeta | null>(null);
   const [facMeta, setFacMeta] = useState<QueryMeta | null>(null);
   const [showMath, setShowMath] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, { id: string; overrideTrust: string; note: string }>>({});
@@ -63,10 +77,58 @@ export default function MedDesertPlanner() {
   const [ovNote, setOvNote] = useState("");
   const [districts, setDistricts] = useState<District[]>([]);
   const [showDistricts, setShowDistricts] = useState(false);
+  const [capProfile, setCapProfile] = useState<CapabilityGap[]>([]);
+  const [trustFilter, setTrustFilter] = useState<"all" | "strong" | "partial" | "weak">("all");
+  const [shortlist, setShortlist] = useState<{ id: string; facilityName: string; capability: string; state: string; trust: string }[]>([]);
+
+  const loadShortlist = () =>
+    fetch("/api/shortlist").then((r) => r.json()).then((j) => setShortlist(j.ok ? j.items : [])).catch(() => {});
   const [briefId, setBriefId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [highlightFac, setHighlightFac] = useState<string | null>(null);
   const hlRef = useRef<HTMLLIElement | null>(null);
+  const [gapView, setGapView] = useState<"real" | "poor">("real");
+  const [kpiInfo, setKpiInfo] = useState<"realGaps" | "dataPoor" | "facilities" | "strong" | null>(null);
+  // The right sidebar toggles between the chat ("agent") and everything else ("info").
+  const [railView, setRailView] = useState<"agent" | "info">("info");
+
+  // Selecting a state populates the Info view — switch the sidebar to it so the detail shows.
+  function selectState(s: string | null) {
+    setSelected(s);
+    if (s) setRailView("info");
+  }
+
+  // Resizable planner rail (the chatbot + panels column). null = use the CSS default width.
+  const [railW, setRailW] = useState<number | null>(null);
+  useEffect(() => {
+    const saved = Number(localStorage.getItem("railW"));
+    if (saved >= 340 && saved <= 900) setRailW(saved);
+  }, []);
+  function startRailResize(e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = railW ?? 460;
+    let lastW = startW;
+    const handle = e.currentTarget as HTMLElement;
+    handle.classList.add("rail__resize--active");
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    const onMove = (ev: MouseEvent) => {
+      const max = Math.min(900, Math.round(window.innerWidth * 0.6));
+      lastW = Math.max(340, Math.min(max, startW + (startX - ev.clientX))); // drag left edge ← widens
+      setRailW(lastW);
+    };
+    const onUp = () => {
+      handle.classList.remove("rail__resize--active");
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      localStorage.setItem("railW", String(lastW));
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
 
   // When a facility point on the map is clicked, scroll its evidence card into view.
   useEffect(() => {
@@ -82,30 +144,62 @@ export default function MedDesertPlanner() {
       .then((j) => setScenarios(j.ok ? j.scenarios : []))
       .catch(() => {});
 
-  useEffect(() => { loadScenarios(); }, []);
-  useEffect(() => { setNote(""); setSaveErr(null); }, [selected, capability]);
+  useEffect(() => { loadScenarios(); loadShortlist(); }, []);
+  useEffect(() => { setNote(""); setSaveErr(null); setTrustFilter("all"); }, [selected, capability]);
 
   useEffect(() => {
     setLoading(true);
     fetch(`/api/regions?capability=${capability}`)
       .then((r) => r.json())
-      .then((j) => { setRegions(j.ok ? j.regions : []); setRegionMeta(j.meta ?? null); })
+      .then((j) => setRegions(j.ok ? j.regions : []))
       .catch(() => setRegions([]))
       .finally(() => setLoading(false));
   }, [capability]);
 
-  // Drill-in: load the facility records (with cited evidence) behind the selected state.
+  // Drill-in: load facility records + image assets in parallel, then merge them.
+  // Image assets come from the enrichment pipeline (workspace.meddesert.hospital_map_assets).
+  // If the pipeline hasn't run yet the image call returns [] and facilities render without images.
   useEffect(() => {
     if (!selected) { setFacilities([]); return; }
     setFacLoading(true);
     const ctrl = new AbortController();
-    fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((j) => { setFacilities(j.ok ? j.facilities : []); setFacMeta(j.meta ?? null); })
+    const tq = trustFilter === "all" ? "" : `&trust=${trustFilter}`;
+
+    Promise.all([
+      fetch(`/api/facilities?capability=${capability}&state=${encodeURIComponent(selected)}${tq}`, { signal: ctrl.signal })
+        .then((r) => r.json()),
+      fetch(`/api/facility-images?state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+        .then((r) => r.json())
+        .catch(() => ({ ok: false, assets: [] })),
+    ])
+      .then(([facJson, imgJson]) => {
+        if (ctrl.signal.aborted) return;
+        const rawFacilities: Facility[] = facJson.ok ? facJson.facilities : [];
+        setFacMeta(facJson.meta ?? null);
+
+        // Build a lookup by hospital name (the natural join key between tables)
+        const imgMap = new Map<string, FacilityImageAsset>();
+        if (imgJson.ok && Array.isArray(imgJson.assets)) {
+          for (const a of imgJson.assets as FacilityImageAsset[]) {
+            imgMap.set(a.hospitalName, a);
+          }
+        }
+
+        setFacilities(
+          rawFacilities.map((f) => {
+            const img = imgMap.get(f.name);
+            return img
+              ? { ...f, imageUrl: img.primaryImageUrl, imageConfidence: img.confidence,
+                  hasIcuImage: img.hasIcuImage, galleryCount: img.galleryCount }
+              : f;
+          })
+        );
+      })
       .catch(() => { if (!ctrl.signal.aborted) setFacilities([]); })
       .finally(() => { if (!ctrl.signal.aborted) setFacLoading(false); });
+
     return () => ctrl.abort();
-  }, [selected, capability]);
+  }, [selected, capability, trustFilter]);
 
   // Load any planner trust overrides for the selected scope.
   useEffect(() => {
@@ -126,6 +220,17 @@ export default function MedDesertPlanner() {
     return () => ctrl.abort();
   }, [selected, capability]);
 
+  // All-capability profile for the selected state (capability-agnostic).
+  useEffect(() => {
+    if (!selected) { setCapProfile([]); return; }
+    const ctrl = new AbortController();
+    fetch(`/api/state-capabilities?state=${encodeURIComponent(selected)}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((j) => setCapProfile(j.ok ? j.capabilities : []))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [selected]);
+
   // District-level gap (supply via PIN × NFHS-5 demand) for the selected state × capability.
   useEffect(() => {
     setShowDistricts(false);
@@ -139,6 +244,7 @@ export default function MedDesertPlanner() {
   }, [selected, capability]);
 
   const realGaps = regions.filter((r) => !r.dataPoor).sort((a, b) => b.gapScore - a.gapScore);
+  const dataPoorRegions = regions.filter((r) => r.dataPoor).sort((a, b) => b.nFacilities - a.nFacilities);
   const sel = regions.find((r) => r.state === selected) ?? null;
 
   // Live national KPIs for the active capability (derived from the loaded regions — no extra query).
@@ -169,6 +275,21 @@ export default function MedDesertPlanner() {
     if (!o) return;
     await fetch(`/api/overrides?id=${o.id}`, { method: "DELETE" }).catch(() => {});
     setOverrides((p) => { const n = { ...p }; delete n[name]; return n; });
+  }
+
+  async function toggleShortlist(f: Facility) {
+    if (!sel) return;
+    const existing = shortlist.find((s) => s.facilityName === f.name && s.capability === capability && normalizeState(s.state) === normalizeState(sel.state));
+    if (existing) {
+      await fetch(`/api/shortlist?id=${existing.id}`, { method: "DELETE" }).catch(() => {});
+    } else {
+      await fetch("/api/shortlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facilityName: f.name, capability, state: sel.state, trust: f.trust, citation: f.citation }),
+      }).catch(() => {});
+    }
+    await loadShortlist();
   }
 
   async function copyBrief(s: Scenario) {
@@ -217,35 +338,56 @@ export default function MedDesertPlanner() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="brand__name">Medical Desert Planner</span>
-          <span className="brand__sub">India · care-gap analysis</span>
-        </div>
-        <div className="feeds">
-          <span className="pill">Virtue Foundation · NFHS-5</span>
-          <span className="pill pill--live"><span className="dot" /> Databricks</span>
+          <span className="brand__name">MedIndia</span>
         </div>
       </header>
-
-      <nav className="tabs">
-        {CAPABILITIES.map((c) => (
-          <button key={c.key} className={`tab${capability === c.key ? " tab--active" : ""}`}
-            onClick={() => { setCapability(c.key); setSelected(null); }}>{c.label}</button>
-        ))}
-      </nav>
 
       <main className="stage">
         <section className="map-col">
           {loading && <div className="map-loading"><span className="map-loading__spin" />Loading {capability} coverage…<span className="map-loading__sub">querying Databricks</span></div>}
-          <GapMap regions={regions} facilities={facilities} onSelect={setSelected} onFacilityClick={setHighlightFac} />
+          <GapMap regions={regions} facilities={facilities} onSelect={selectState} onFacilityClick={setHighlightFac} />
+
+          <nav className="capfloat" aria-label="Clinical capability">
+            {CAPABILITIES.map((c) => (
+              <button key={c.key} className={`capfloat__btn${capability === c.key ? " capfloat__btn--on" : ""}`}
+                onClick={() => { setCapability(c.key); setSelected(null); }} aria-current={capability === c.key}>
+                {c.label}
+              </button>
+            ))}
+          </nav>
           {!loading && regions.length > 0 && (
             <div className="overlay overlay--tl kpis rise">
               <div className="kpis__cap">{capability.toUpperCase()} · India</div>
               <div className="kpis__row">
-                <div className="kpi"><span className="kpi__n kpi__n--gap">{kpis.realGaps}</span><span className="kpi__l">real gaps</span></div>
-                <div className="kpi"><span className="kpi__n">{kpis.dataPoor}</span><span className="kpi__l">data-poor</span></div>
-                <div className="kpi"><span className="kpi__n">{kpis.facilities.toLocaleString()}</span><span className="kpi__l">facilities</span></div>
-                <div className="kpi"><span className="kpi__n">{kpis.strong.toLocaleString()}</span><span className="kpi__l">strong evid.</span></div>
+                <button className="kpi kpi--btn" onClick={() => setKpiInfo(kpiInfo === "realGaps" ? null : "realGaps")}>
+                  <span className="kpi__n kpi__n--gap">{kpis.realGaps}</span><span className="kpi__l">real gaps</span>
+                </button>
+                <button className="kpi kpi--btn" onClick={() => setKpiInfo(kpiInfo === "dataPoor" ? null : "dataPoor")}>
+                  <span className="kpi__n">{kpis.dataPoor}</span><span className="kpi__l">data-poor</span>
+                </button>
+                <button className="kpi kpi--btn" onClick={() => setKpiInfo(kpiInfo === "facilities" ? null : "facilities")}>
+                  <span className="kpi__n">{kpis.facilities.toLocaleString()}</span><span className="kpi__l">facilities</span>
+                </button>
+                <button className="kpi kpi--btn" onClick={() => setKpiInfo(kpiInfo === "strong" ? null : "strong")}>
+                  <span className="kpi__n">{kpis.strong.toLocaleString()}</span><span className="kpi__l">strong evid.</span>
+                </button>
               </div>
+              {kpiInfo && (
+                <div className="kpi__popover">
+                  {kpiInfo === "realGaps" && <>
+                    <strong>{kpis.realGaps} real {capability.toUpperCase()} gaps</strong> — states where facility supply data and NFHS-5 health indicators are sufficient to confidently score the access gap. Gap score = NFHS-5 demand-side need × trust-weighted facility scarcity. A higher score means more urgent need relative to available care. These states are colored on the map from blue (covered) to red (severe gap).
+                  </>}
+                  {kpiInfo === "dataPoor" && <>
+                    <strong>{kpis.dataPoor} data-poor regions</strong> — states or territories without enough verifiable facility records or NFHS-5 indicators to compute a reliable gap score. They appear <em>grey</em> on the map. This does <strong>not</strong> mean no gap exists — the evidence is simply missing. These regions are candidates for data collection and field surveys, not safe assumptions of adequate care.
+                  </>}
+                  {kpiInfo === "facilities" && <>
+                    <strong>{kpis.facilities.toLocaleString()} total facilities</strong> — all {capability.toUpperCase()}-capable facilities on record across India for this capability, sourced from the Virtue Foundation dataset. Each facility carries a trust signal: <em>strong</em> (structured data + claim agree), <em>partial</em> (one source), or <em>weak</em> (free-text only). Only trust ≠ none are used in gap scoring.
+                  </>}
+                  {kpiInfo === "strong" && <>
+                    <strong>{kpis.strong.toLocaleString()} strong-evidence facilities</strong> — facilities where structured data and a direct capability claim both confirm {capability.toUpperCase()} capability. These carry the highest weight in the gap score formula. Regions with few strong-evidence facilities score lower supply even if many weak-evidence facilities exist, reflecting genuine uncertainty.
+                  </>}
+                </div>
+              )}
             </div>
           )}
           <div className="overlay overlay--bl legend rise">
@@ -263,42 +405,110 @@ export default function MedDesertPlanner() {
                 </div>
               </div>
             )}
-            {regionMeta && (
-              <div className="obs obs--legend">
-                <span className="obs__dot" /> {regionMeta.engine} · {regionMeta.rows} regions · {regionMeta.ms}ms · <code>{regionMeta.source}</code>
-              </div>
-            )}
           </div>
         </section>
 
-        <aside className="rail">
-          <AgentAsk onResult={(cap, state) => {
-            if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
-            setSelected(state);
-          }} />
+        <aside className="rail" style={railW ? { width: railW } : undefined}>
+          <div className="rail__resize" onMouseDown={startRailResize} role="separator"
+            aria-orientation="vertical" aria-label="Resize panel" title="Drag to resize" />
+          <div className="railtog" role="tablist" aria-label="Sidebar view">
+            <button role="tab" aria-selected={railView === "agent"} className={`railtog__btn${railView === "agent" ? " railtog__btn--on" : ""}`}
+              onClick={() => setRailView("agent")}>Agent</button>
+            <button role="tab" aria-selected={railView === "info"} className={`railtog__btn${railView === "info" ? " railtog__btn--on" : ""}`}
+              onClick={() => setRailView("info")}>Info</button>
+          </div>
 
+          {railView === "agent" ? (
+            <AgentAsk onResult={(cap, state) => {
+              if (CAPABILITIES.some((c) => c.key === cap)) setCapability(cap as CapabilityKey);
+              // Sync the map focus but stay on the Agent tab so the answer stays visible.
+              setSelected(state);
+            }} />
+          ) : (
+            <>
           <section className="panel">
             <div className="panel__head">
-              <div className="panel__eyebrow">Highest-risk gaps</div>
-              <h2 className="panel__title">{capability.toUpperCase()} — real care gaps</h2>
+              <div className="panel__eyebrow">{capability.toUpperCase()} · India</div>
+              <div className="seg">
+                <button className={`seg__btn${gapView === "real" ? " seg__btn--on" : ""}`} onClick={() => setGapView("real")}>
+                  Real gaps <span className="seg__n">{realGaps.length}</span>
+                </button>
+                <button className={`seg__btn${gapView === "poor" ? " seg__btn--on" : ""}`} onClick={() => setGapView("poor")}>
+                  Data-poor <span className="seg__n">{dataPoorRegions.length}</span>
+                </button>
+              </div>
             </div>
             <div className="panel__body">
-              {realGaps.length === 0 && <p className="note">Loading…</p>}
-              <div className="alloc">
-                {realGaps.slice(0, 8).map((r) => (
-                  <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => setSelected(r.state)}>
-                    <div className="alloc__row__top">
-                      <span className="alloc__county">{r.state}</span>
-                      <span className="alloc__amt">{r.gapScore.toFixed(2)}</span>
+              {regions.length === 0 && <p className="note">Loading…</p>}
+              {gapView === "real" ? (
+                <>
+                  <div className="insight-callout">
+                    <div className="insight-callout__num">{realGaps.length}</div>
+                    <div className="insight-callout__body">
+                      <strong>Real {capability.toUpperCase()} gaps</strong> — states where facility supply data and NFHS-5 health indicators are strong enough to confidently score the access gap. Gap score = NFHS-5 demand-side need × trust-weighted facility scarcity. The higher the score, the more urgent the gap. Click any state to drill in.
                     </div>
-                    <div className="bar"><div className="bar__fill" style={{ width: `${Math.round(r.gapScore / (realGaps[0].gapScore || 1) * 100)}%`, background: gapColor(r.gapScore) }} /></div>
-                    <div className="alloc__action">{r.strong} strong · {r.nFacilities} facilities · NFHS inst-birth {r.institutionalBirth ?? "—"}%</div>
-                  </button>
-                ))}
-              </div>
-              <p className="note">Ranked by gap score among states with enough evidence + NFHS need data. Data-poor regions are shown grey on the map, not ranked.</p>
+                  </div>
+                  <div className="alloc">
+                    {realGaps.slice(0, 8).map((r) => (
+                      <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => selectState(r.state)}>
+                        <div className="alloc__row__top">
+                          <span className="alloc__county">{r.state}</span>
+                          <span className="alloc__amt">{r.gapScore.toFixed(2)}</span>
+                        </div>
+                        <div className="bar"><div className="bar__fill" style={{ width: `${Math.round(r.gapScore / (realGaps[0].gapScore || 1) * 100)}%`, background: gapColor(r.gapScore) }} /></div>
+                        <div className="alloc__action">{r.strong} strong · {r.nFacilities} facilities · NFHS inst-birth {r.institutionalBirth ?? "—"}%</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="note">Ranked by gap score among states with enough evidence + NFHS need data. Data-poor regions are shown grey on the map, not ranked.</p>
+                </>
+              ) : (
+                <>
+                  <div className="insight-callout insight-callout--poor">
+                    <div className="insight-callout__num">{dataPoorRegions.length}</div>
+                    <div className="insight-callout__body">
+                      <strong>Data-poor regions</strong> — states or territories without enough verifiable facility records or NFHS-5 need indicators to compute a reliable gap score. They appear <em>grey</em> on the map. This does <strong>not</strong> mean no gap exists — it means the evidence is missing. These are priority candidates for data collection and field surveys.
+                    </div>
+                  </div>
+                  <div className="alloc">
+                    {dataPoorRegions.slice(0, 10).map((r) => (
+                      <button key={r.state} className="alloc__row alloc__row--btn" onClick={() => selectState(r.state)}>
+                        <div className="alloc__row__top">
+                          <span className="alloc__county">{r.state}</span>
+                          <span className="dp-tag">data-poor</span>
+                        </div>
+                        <div className="alloc__action">{dataPoorReason(r)} · {r.nFacilities} facilities</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="note">These regions can&apos;t be confidently ranked — too little verifiable evidence or missing NFHS-5 need data. They are candidates for <strong>data collection</strong>, not conclusions of &ldquo;no gap.&rdquo;</p>
+                </>
+              )}
             </div>
           </section>
+
+          {!sel && (
+            <section className="panel guide">
+              <div className="panel__head">
+                <div className="panel__eyebrow">How to use this</div>
+                <h2 className="panel__title">Find a real care gap</h2>
+              </div>
+              <div className="panel__body">
+                <ol className="guide__steps">
+                  <li><b>Pick a capability</b> from the list on the left (ICU, maternity, emergency, oncology, trauma, NICU).</li>
+                  <li><b>Choose a place</b> — click a state on the map or a ranked gap.</li>
+                  <li><b>Inspect the evidence</b> — every score cites the facility&apos;s own text, with a trust signal.</li>
+                  <li><b>Save a scenario</b> — persist a shortlist + note, or export a cited brief.</li>
+                </ol>
+                <div className="guide__keys">
+                  {[["strong", "structured + claim agree"], ["partial", "one source"], ["weak", "free-text only"], ["none", "no claim"]].map(([t, d]) => (
+                    <div key={t} className="guide__key"><span className={`trust ${trustClass(t)}`}>{trustLabel(t)}</span><span className="guide__key-d">{d}</span></div>
+                  ))}
+                </div>
+                <p className="note">Gap = NFHS-5 demand-side need × trust-weighted facility scarcity — a transparent formula, not a black-box model. Regions without enough evidence are flagged <strong>data-poor</strong>, never assumed to have &ldquo;no gap.&rdquo; Sources: Virtue Foundation facilities · NFHS-5 district indicators · India Post PIN directory, via Databricks.</p>
+              </div>
+            </section>
+          )}
 
           {sel && (
             <section className="panel rise">
@@ -343,6 +553,30 @@ export default function MedDesertPlanner() {
                   );
                 })()}
 
+                {capProfile.length > 0 && (() => {
+                  const ordered = orderCapabilityProfile(capProfile);
+                  const maxGap = ordered.find((c) => !c.dataPoor)?.gapScore || 1;
+                  return (
+                    <div className="prof">
+                      <div className="prof__title">Gap across all capabilities in {sel.state}</div>
+                      {ordered.map((c) => {
+                        const active = c.capability === capability;
+                        return (
+                          <button key={c.capability} className={`prof__row${active ? " prof__row--on" : ""}`}
+                            onClick={() => CAPABILITIES.some((x) => x.key === c.capability) && setCapability(c.capability as CapabilityKey)}>
+                            <span className="prof__cap">{c.capability.toUpperCase()}</span>
+                            <span className="prof__bar">
+                              <span className="prof__fill" style={{ width: c.dataPoor ? "100%" : `${Math.round((c.gapScore / maxGap) * 100)}%`, background: c.dataPoor ? "var(--paper-sunk)" : gapColor(c.gapScore) }} />
+                            </span>
+                            <span className="prof__val">{c.dataPoor ? "data-poor" : c.gapScore.toFixed(2)}</span>
+                          </button>
+                        );
+                      })}
+                      <p className="note">Same state, every clinical capability — pick the biggest real gap. Click a row to switch the map to that capability.</p>
+                    </div>
+                  );
+                })()}
+
                 {districts.length > 0 && (() => {
                   const realDist = districts.filter((d) => !d.dataPoor);
                   const top = realDist.slice(0, 12);
@@ -356,8 +590,8 @@ export default function MedDesertPlanner() {
                         <>
                           <ul className="dist__list">
                             {top.map((d) => (
-                              <li key={d.district} className="dist__row">
-                                <span className="dist__name">{d.district}</span>
+                              <li key={d.district} className={`dist__row${d.dataPoor ? " dist__row--dp" : ""}`}>
+                                <span className="dist__name">{d.district}{d.dataPoor ? " · data-poor" : ""}</span>
                                 <span className="dist__bar"><span className="dist__fill" style={{ width: `${Math.round((d.gapScore / maxGap) * 100)}%`, background: gapColor(d.gapScore) }} /></span>
                                 <span className="dist__val">{d.strong}s · {d.nFacilities}f</span>
                               </li>
@@ -379,6 +613,22 @@ export default function MedDesertPlanner() {
                     <span className="obs__dot" /> {facMeta.rows} rows · {facMeta.ms}ms · <code>{facMeta.source}</code>
                   </div>
                 )}
+                {/* Trust filter chips — counts from the state aggregate (region_gap), so they
+                    reflect ALL facilities of each trust, not just the loaded top-60. */}
+                {(sel.strong + sel.partial + sel.weak) > 0 && (() => {
+                  const opts: [typeof trustFilter, string, number][] = [
+                    ["all", "All", sel.strong + sel.partial + sel.weak],
+                    ["strong", "Strong", sel.strong], ["partial", "Partial", sel.partial], ["weak", "Weak", sel.weak],
+                  ];
+                  return (
+                    <div className="tfilter">
+                      {opts.map(([k, label, n]) => (
+                        <button key={k} className={`tfilter__btn${trustFilter === k ? " tfilter__btn--on" : ""}`}
+                          disabled={n === 0} onClick={() => setTrustFilter(k)}>{label} <span className="tfilter__n">{n}</span></button>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {facLoading && <p className="note">Loading facility records…</p>}
                 {!facLoading && facilities.length === 0 && (
                   <p className="note">No facility in {sel.state} carries any {capability.toUpperCase()} claim — the gap here is an absence of evidence, not a verified service.</p>
@@ -386,11 +636,16 @@ export default function MedDesertPlanner() {
                 <ul className="evid">
                   {facilities.map((f, i) => {
                     const hl = highlightFac === f.name;
+                    const listed = shortlist.some((s) => s.facilityName === f.name && s.capability === capability && normalizeState(s.state) === normalizeState(sel.state));
                     return (
                     <li key={`${f.name}-${i}`} className={`fac${hl ? " fac--hl" : ""}`} ref={hl ? hlRef : null}>
                       <div className="fac__top">
                         <span className="fac__name">{f.name || "Unnamed facility"}</span>
-                        <span className={`trust ${trustClass(f.trust)}`}>{trustLabel(f.trust)}</span>
+                        <div className="fac__top-r">
+                          <button className={`star${listed ? " star--on" : ""}`} title={listed ? "Remove from shortlist" : "Add to shortlist"}
+                            aria-label="Toggle shortlist" onClick={() => toggleShortlist(f)}>{listed ? "★" : "☆"}</button>
+                          <span className={`trust ${trustClass(f.trust)}`}>{trustLabel(f.trust)}</span>
+                        </div>
                       </div>
                       {f.city && <div className="fac__city">{f.city}</div>}
                       {f.citation && <blockquote className="fac__cite">“{f.citation}”</blockquote>}
@@ -456,7 +711,7 @@ export default function MedDesertPlanner() {
                   {scenarios.map((s) => (
                     <li key={s.id} className="scen__item">
                       <div className="scen__top">
-                        <button className="scen__title" onClick={() => { setCapability(s.capability as CapabilityKey); setSelected(s.state); }}>
+                        <button className="scen__title" onClick={() => { setCapability(s.capability as CapabilityKey); selectState(s.state); }}>
                           {s.state} · {s.capability.toUpperCase()}
                         </button>
                         <div className="scen__actions">
@@ -482,6 +737,8 @@ export default function MedDesertPlanner() {
                 </ul>
               </div>
             </section>
+          )}
+            </>
           )}
         </aside>
       </main>

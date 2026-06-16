@@ -1,0 +1,15 @@
+# Image enrichment pipeline dependencies
+# Install with: pip install -r requirements_enrichment.txt
+
+# HTTP + scraping
+requests>=2.31.0
+
+# Image processing
+Pillow>=10.0.0
+imagehash>=4.3.1    # perceptual hashing for near-duplicate detection
+
+# Anthropic Claude API (vision validation)
+anthropic>=0.34.0
+
+# Env loading (reads .env.local in the repo root)
+python-dotenv>=1.0.0
