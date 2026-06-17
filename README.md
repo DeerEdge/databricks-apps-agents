@@ -2,6 +2,13 @@
 
 Analyze messy health records and surface critical healthcare information to help coordinators make equitable data-backed decisions.
 
+<div align="center">
+  <img src="medindia-map.gif" alt="Haven AI Dashboard" width="800"/>
+  <br/>
+  <img src="medindia-maya.gif" alt="Haven AI Chat" width="800"/>
+  <br/>
+</div>
+
 ## Live app login
 
 **https://meddesert-7474653569700804.aws.databricksapps.com**
