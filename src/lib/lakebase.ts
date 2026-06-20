@@ -3,10 +3,10 @@
 //
 // Auth: Lakebase has native login disabled, so the Postgres password is a short-lived
 // OAuth token minted from the Databricks token via the Database Credentials API. We cache
-// the token and refresh it before expiry; pg accepts an async `password` function per
-// connection, so every new connection picks up a fresh token automatically.
+// the token and refresh it before expiry, then pass it as a string when opening each
+// connection (Workers-safe: no long-lived Pool; connect → query → disconnect).
 
-import { Pool } from "pg";
+import { Client } from "pg";
 import type { CleanScenario } from "./scenario";
 import type { CleanOverride } from "./override";
 import type { CleanShortlistInput, SavedShortlistItem } from "./referral";
@@ -54,32 +54,33 @@ async function databaseToken(): Promise<string> {
   return data.token;
 }
 
-// One pool per server process. `password` is an async fn → fresh token per connection.
-let pool: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 
-function getPool(): Pool {
-  if (pool) return pool;
+async function withClient<T>(fn: (client: Client) => Promise<T>): Promise<T> {
   assertConfig();
-  pool = new Pool({
+  const client = new Client({
     host: PG_HOST,
     port: 5432,
     user: PG_USER,
     database: PG_DATABASE,
-    password: databaseToken,
-    ssl: true, // verified TLS (rejectUnauthorized defaults on) — Lakebase has a publicly-trusted cert
-    max: 4,
-    idleTimeoutMillis: 30_000,
+    password: await databaseToken(),
+    ssl: true,
     connectionTimeoutMillis: 15_000,
   });
-  return pool;
+  try {
+    await client.connect();
+    return await fn(client);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }
 
 function ensureSchema(): Promise<void> {
   if (schemaReady) return schemaReady;
-  schemaReady = getPool()
-    .query(
-      `CREATE TABLE IF NOT EXISTS saved_scenario (
+  schemaReady = withClient((client) =>
+    client
+      .query(
+        `CREATE TABLE IF NOT EXISTS saved_scenario (
          id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
          created_at  timestamptz NOT NULL DEFAULT now(),
          capability  text NOT NULL,
@@ -114,97 +115,115 @@ function ensureSchema(): Promise<void> {
          query_context text NOT NULL DEFAULT '',
          note          text NOT NULL DEFAULT ''
        )`
-    )
-    .then(() => undefined)
-    .catch((e) => {
-      schemaReady = null; // allow a retry on next call
-      throw e;
-    });
+      )
+      .then(() => undefined)
+  ).catch((e) => {
+    schemaReady = null;
+    throw e;
+  });
   return schemaReady;
 }
 
 export async function saveScenario(s: CleanScenario): Promise<SavedScenario> {
   await ensureSchema();
-  const { rows } = await getPool().query(
-    `INSERT INTO saved_scenario (capability, state, gap_score, data_poor, n_facilities, note, evidence)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-     RETURNING id, created_at, capability, state, gap_score, data_poor, n_facilities, note, evidence`,
-    [s.capability, s.state, s.gapScore, s.dataPoor, s.nFacilities, s.note, JSON.stringify(s.evidence)]
-  );
-  return toScenario(rows[0]);
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      `INSERT INTO saved_scenario (capability, state, gap_score, data_poor, n_facilities, note, evidence)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+       RETURNING id, created_at, capability, state, gap_score, data_poor, n_facilities, note, evidence`,
+      [s.capability, s.state, s.gapScore, s.dataPoor, s.nFacilities, s.note, JSON.stringify(s.evidence)]
+    );
+    return toScenario(rows[0]);
+  });
 }
 
 export async function listScenarios(limit = 50): Promise<SavedScenario[]> {
   await ensureSchema();
-  const { rows } = await getPool().query(
-    `SELECT id, created_at, capability, state, gap_score, data_poor, n_facilities, note, evidence
-     FROM saved_scenario ORDER BY created_at DESC LIMIT $1`,
-    [limit]
-  );
-  return rows.map(toScenario);
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, created_at, capability, state, gap_score, data_poor, n_facilities, note, evidence
+       FROM saved_scenario ORDER BY created_at DESC LIMIT $1`,
+      [limit]
+    );
+    return rows.map(toScenario);
+  });
 }
 
 export async function deleteScenario(id: string): Promise<boolean> {
   await ensureSchema();
-  const { rowCount } = await getPool().query(`DELETE FROM saved_scenario WHERE id = $1`, [id]);
-  return (rowCount ?? 0) > 0;
+  return withClient(async (client) => {
+    const { rowCount } = await client.query(`DELETE FROM saved_scenario WHERE id = $1`, [id]);
+    return (rowCount ?? 0) > 0;
+  });
 }
 
 export async function saveOverride(o: CleanOverride): Promise<SavedOverride> {
   await ensureSchema();
-  const { rows } = await getPool().query(
-    `INSERT INTO facility_override (facility_name, capability, state, override_trust, note)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, created_at, facility_name, capability, state, override_trust, note`,
-    [o.facilityName, o.capability, o.state, o.overrideTrust, o.note]
-  );
-  return toOverride(rows[0]);
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      `INSERT INTO facility_override (facility_name, capability, state, override_trust, note)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, created_at, facility_name, capability, state, override_trust, note`,
+      [o.facilityName, o.capability, o.state, o.overrideTrust, o.note]
+    );
+    return toOverride(rows[0]);
+  });
 }
 
 /** Latest override per facility for a capability×state scope. */
 export async function listOverrides(capability: string, state: string): Promise<SavedOverride[]> {
   await ensureSchema();
-  const { rows } = await getPool().query(
-    `SELECT DISTINCT ON (facility_name) id, created_at, facility_name, capability, state, override_trust, note
-     FROM facility_override
-     WHERE capability = $1 AND upper(trim(state)) = upper(trim($2))
-     ORDER BY facility_name, created_at DESC`,
-    [capability, state]
-  );
-  return rows.map(toOverride);
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      `SELECT DISTINCT ON (facility_name) id, created_at, facility_name, capability, state, override_trust, note
+       FROM facility_override
+       WHERE capability = $1 AND upper(trim(state)) = upper(trim($2))
+       ORDER BY facility_name, created_at DESC`,
+      [capability, state]
+    );
+    return rows.map(toOverride);
+  });
 }
 
 export async function deleteOverride(id: string): Promise<boolean> {
   await ensureSchema();
-  const { rowCount } = await getPool().query(`DELETE FROM facility_override WHERE id = $1`, [id]);
-  return (rowCount ?? 0) > 0;
+  return withClient(async (client) => {
+    const { rowCount } = await client.query(`DELETE FROM facility_override WHERE id = $1`, [id]);
+    return (rowCount ?? 0) > 0;
+  });
 }
 
 export async function saveShortlistItem(s: CleanShortlistInput): Promise<SavedShortlistItem> {
   await ensureSchema();
-  const { rows } = await getPool().query(
-    `INSERT INTO saved_shortlist (facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     RETURNING id, created_at, facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note`,
-    [s.facilityId, s.name, s.city, s.state, s.lat, s.lon, s.distanceKm, s.trust, s.citation, s.queryContext, s.note]
-  );
-  return toShortlistItem(rows[0]);
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      `INSERT INTO saved_shortlist (facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, created_at, facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note`,
+      [s.facilityId, s.name, s.city, s.state, s.lat, s.lon, s.distanceKm, s.trust, s.citation, s.queryContext, s.note]
+    );
+    return toShortlistItem(rows[0]);
+  });
 }
 
 export async function listShortlist(limit = 50): Promise<SavedShortlistItem[]> {
   await ensureSchema();
-  const { rows } = await getPool().query(
-    `SELECT id, created_at, facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note
-     FROM saved_shortlist ORDER BY created_at DESC LIMIT $1`,
-    [limit]
-  );
-  return rows.map(toShortlistItem);
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, created_at, facility_id, name, city, state, lat, lon, distance_km, trust, citation, query_context, note
+       FROM saved_shortlist ORDER BY created_at DESC LIMIT $1`,
+      [limit]
+    );
+    return rows.map(toShortlistItem);
+  });
 }
 
 export async function deleteShortlistItem(id: string): Promise<boolean> {
   await ensureSchema();
-  const { rowCount } = await getPool().query(`DELETE FROM saved_shortlist WHERE id = $1`, [id]);
-  return (rowCount ?? 0) > 0;
+  return withClient(async (client) => {
+    const { rowCount } = await client.query(`DELETE FROM saved_shortlist WHERE id = $1`, [id]);
+    return (rowCount ?? 0) > 0;
+  });
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

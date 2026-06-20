@@ -1,35 +1,45 @@
 # MedIndia
 
-Analyze messy health records and surface critical healthcare information to help coordinators make equitable data-backed decisions.
+Analyze messy health records and surface critical healthcare information to help coordinators
+make equitable data-backed decisions.
 
 <div align="center">
-  <img src="medindia-map.gif" alt="Haven AI Dashboard" width="800"/>
+  <img src="medindia-map.gif" alt="MedIndia map and planner" width="800"/>
   <br/>
-  <img src="medindia-maya.gif" alt="Haven AI Chat" width="800"/>
+  <img src="medindia-maya.gif" alt="Maya referral copilot" width="800"/>
   <br/>
 </div>
 
-## Live app login
+## Live app
 
-**https://meddesert-7474653569700804.aws.databricksapps.com**
+**https://meddesert.kabirsinghct.workers.dev**
 
-Databricks Apps are always login-gated (they can't be made public), and Free Edition signs in
-with a **one-time code emailed to the account**. We've set up a dedicated demo Google account so
-you can retrieve that code:
+No login required — open the link and explore.
 
-- **Demo Gmail:** `databrickstest2026@gmail.com`
-- **Gmail password:** `databricks2026`
+### What to try
 
-### How to log in
-
-1. Sign in to Gmail at https://mail.google.com with the demo account above — keep the tab open.
-2. Open the app: **https://meddesert-7474653569700804.aws.databricksapps.com**
-3. At the Databricks sign-in page, enter `databrickstest2026@gmail.com` and continue. A
-   **6-character one-time code** is emailed to that inbox.
-4. Switch back to the Gmail tab, open the new email from Databricks, and copy the code.
-5. Paste it into the app and submit
+Switch the clinical **capability**; click a **state** to see its care-gap score and the **facility
+records + citations** behind it (note the trust signals and the **real-gap vs data-poor**
+distinction); ask the **planner agent** a question like *"Worst ICU gaps in India?"* for Genie-backed
+analysis and charts; visit **Maya** at `/referral` for the referral copilot; **save a planning
+scenario** and **shortlist a facility** — these persist via Lakebase, so reload to confirm they're
+still there.
 
 ## Stack
 
-Next.js (App Router, TypeScript) UI + API routes, MapLibre GL choropleth, Databricks
-Lakehouse, **Lakebase** for persistence. 
+Next.js (App Router, TypeScript) on **Cloudflare Workers** · MapLibre GL choropleth · Databricks
+Lakehouse (`workspace.meddesert`, via the SQL Statement Execution API) · **Lakebase** (Postgres)
+for persistence · Databricks Genie (planner agent) · Mosaic AI (Maya referral copilot). Gap scoring
+is a **transparent, inspectable formula — not machine learning**.
+
+See `spec.md` (architecture + data model), `features.md` (feature tracker), and `CLAUDE.md`
+(engineering standards).
+
+## Deploy (maintainers)
+
+```bash
+npm run cf:deploy
+```
+
+Requires `wrangler login` and secrets (`DATABRICKS_TOKEN`, `LAKEBASE_USER`, `CEREBRAS_API_KEY`).
+Non-secret env vars live in `wrangler.jsonc`.

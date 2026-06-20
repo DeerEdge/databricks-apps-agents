@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "meddesert",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "meddesert"
+    }
+  ],
+  "vars": {
+    "NODE_ENV": "production",
+    "DATABRICKS_HOST": "https://dbc-837977ce-19e0.cloud.databricks.com",
+    "DATABRICKS_WAREHOUSE_ID": "6c9078480dee0864",
+    "DATABRICKS_GENIE_SPACE_ID": "01f16943837c118086f60eca05ec356f",
+    "MOSAIC_AI_ENDPOINT": "https://dbc-837977ce-19e0.cloud.databricks.com/serving-endpoints/maya/invocations",
+    "LAKEBASE_INSTANCE": "meddesert",
+    "LAKEBASE_HOST": "ep-late-smoke-d8kfur2q.database.us-east-2.cloud.databricks.com",
+    "LAKEBASE_DATABASE": "databricks_postgres",
+    "CEREBRAS_MODEL": "gpt-oss-120b"
+  }
+}
